@@ -188,21 +188,6 @@ internal val standardProfileStateConstructor = findMethodDirect {
         .maxByOrNull { it.paramCount } ?: throw Exception("Standard screen state constructor not found")
 }
 
-internal val upgradeOnboardingLaunchFingerprint = findMethodDirect {
-    val owner = classByConstructorParams("upgradeDialogLauncher") { ctor ->
-        ctor.paramCount == 1 && ctor.declaredClass!!.methods.any { m ->
-            m.usingStrings.containsAll(listOf("upgradeSource", "upgradeTrigger"))
-        }
-    }.name
-    findMethod {
-        matcher {
-            declaredClass(owner)
-            returnType = "void"
-            paramTypes("android.content.Context")
-        }
-    }.only("launchOnboarding") { it.descriptor }
-}
-
 private fun DexKitBridge.serverManager2(): ClassData =
     classByConstructorParams("serverManager", "getSmartProtocols") { ctor ->
         ctor.paramCount == 2 && ctor.paramTypeNames.first() == SERVER_MANAGER

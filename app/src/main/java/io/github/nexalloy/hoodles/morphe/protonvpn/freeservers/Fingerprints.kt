@@ -1,5 +1,6 @@
 package io.github.nexalloy.hoodles.morphe.protonvpn.freeservers
 
+import io.github.nexalloy.AllowAbstract
 import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import java.lang.reflect.Modifier
@@ -59,6 +60,8 @@ private val serverGroupItemToStateFingerprint = findMethodDirect {
         .only("ServerGroupItemData.toState") { it.descriptor }
 }
 
+// The patch invokes this abstract getter on any ServerGroupItemData instead of hooking it.
+@get:AllowAbstract
 internal val serverGroupItemTierGetter = findMethodDirect {
     val itemData = firstOf(
         "ServerGroupItemData class",
