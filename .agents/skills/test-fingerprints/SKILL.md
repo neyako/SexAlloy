@@ -31,6 +31,26 @@ containing folder:
 | `com.google.android.youtube` | YouTube |
 | `com.google.android.apps.youtube.music` | YouTube Music |
 | `com.reddit.frontpage` | Reddit |
+| `com.zhiliaoapp.musically`, `com.ss.android.ugc.trill` | TikTok |
+| `com.twitter.android` | X (Twitter) |
+| `com.google.android.googlequicksearchbox` | Google (Discover) |
+| `com.google.android.gm` | Gmail |
+| `com.google.android.apps.photos` | Google Photos |
+| `com.microblink.photomath` | Photomath |
+| `com.strava` | Strava |
+| `com.alltrails.alltrails` | AllTrails |
+| `com.soundcloud.android` | SoundCloud |
+| `ch.protonvpn.android` | Proton VPN |
+| `com.instagram.android` | Instagram |
+| `com.instagram.barcelona` | Threads |
+| `com.facebook.orca` | Messenger |
+| `com.facebook.katana` | Facebook |
+| `com.zing.zalo` | Zalo |
+
+The table is `FingerprintTestReport.testApps`, which also names each app's fingerprint source
+folders. Every `*Fingerprints.kt` file under those folders is tested. TikTok ships most
+of its code in the `df_a_dex` split, so test a single APK that holds the dex files of
+`base.apk` and `df_a_dex.apk` together (append the split's `classesN.dex` after the base ones).
 
 Use descriptive names such as `<package>-<versionName>-<versionCode>.apk`. Only the package prefix is required for routing. Renaming
 a file cannot add support for an application absent from the routing table.

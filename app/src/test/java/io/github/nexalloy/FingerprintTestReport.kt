@@ -32,12 +32,38 @@ object FingerprintTestReport {
     private val apks = linkedMapOf<String, Apk>()
     private var startedAt = Instant.now().toString()
 
-    fun appFor(path: Path): String? = when {
-        path.name.startsWith("com.google.android.youtube") -> "youtube"
-        path.name.startsWith("com.google.android.apps.youtube.music") -> "music"
-        path.name.startsWith("com.reddit.frontpage") -> "reddit"
-        else -> null
-    }
+    /**
+     * A supported app: the APK file name prefix that selects it, its id in the report and in
+     * `@TargetApp`, and the source folders (under `io/github/nexalloy`) holding its fingerprints.
+     */
+    class TestApp(val prefix: String, val id: String, vararg val roots: String)
+
+    val testApps = listOf(
+        TestApp("com.google.android.youtube", "youtube", "morphe/youtube", "morphe/shared"),
+        TestApp("com.google.android.apps.youtube.music", "music", "morphe/music", "morphe/shared"),
+        TestApp("com.reddit.frontpage", "reddit", "morphe/reddit"),
+        TestApp("com.zhiliaoapp.musically", "tiktok", "morphe/tiktok"),
+        TestApp("com.ss.android.ugc.trill", "tiktok", "morphe/tiktok"),
+        TestApp("com.twitter.android", "twitter", "morphe/twitter"),
+        TestApp("com.google.android.googlequicksearchbox", "discover", "morphe/google"),
+        TestApp("com.google.android.gm", "gmail", "mrxsin/gmail"),
+        TestApp("com.google.android.apps.photos", "googlephotos", "revanced/googlephotos"),
+        TestApp("com.microblink.photomath", "photomath", "revanced/photomath"),
+        TestApp("com.strava", "strava", "revanced/strava"),
+        TestApp("com.alltrails.alltrails", "alltrails", "hoodles/morphe/alltrails"),
+        TestApp("com.soundcloud.android", "soundcloud", "v4n1x/morphe/soundcloud"),
+        TestApp("ch.protonvpn.android", "protonvpn", "hoodles/morphe/protonvpn"),
+        // Meta apps share fingerprints: the Tigon network layer and MQTT presence.
+        TestApp("com.instagram.android", "instagram", "revanced/instagram", "revanced/shared/tigon"),
+        TestApp("com.instagram.barcelona", "threads", "revanced/threads", "revanced/shared/tigon"),
+        TestApp("com.facebook.orca", "messenger", "revanced/messenger", "revanced/shared/presence"),
+        TestApp("com.facebook.katana", "facebook", "revanced/facebook", "revanced/shared/presence"),
+        TestApp("com.zing.zalo", "zalo", "revanced/zalo"),
+    )
+
+    fun testAppFor(path: Path): TestApp? = testApps.firstOrNull { path.name.startsWith(it.prefix) }
+
+    fun appFor(path: Path): String? = testAppFor(path)?.id
 
     fun start(paths: List<Path>) {
         startedAt = Instant.now().toString()

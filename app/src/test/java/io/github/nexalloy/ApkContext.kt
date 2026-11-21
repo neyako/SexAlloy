@@ -77,6 +77,8 @@ class ApkContext(apkPath: String) : Closeable {
             EnumSet.of(AppAttribute.VERSION_NAME),
             JadxSecurity(JadxSecurityFlag.none())
         )
-        return AppVersion(manifest.parse().versionName!!.removeSuffix("-SECONDARY"))
+        // Keep the leading numeric part: "12.45.1-prod.01", "17.76.14.sa.arm64", "2026.11.09.1.Release".
+        val versionName = manifest.parse().versionName!!
+        return AppVersion(Regex("""\d+(\.\d+)*""").find(versionName)!!.value)
     }
 }

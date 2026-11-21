@@ -149,15 +149,11 @@ class FingerprintsKtTest(val apkPath: Path) {
 
             val classLoader = Thread.currentThread().contextClassLoader!!
 
-            // Test val properties on FingerprintsKt (may not exist if all fingerprints are objects).
-            val fingerprintsKtClass = try {
-                classLoader.loadClass("${group.package_name}.FingerprintsKt")
-            } catch (_: ClassNotFoundException) {
-                null
-            }
-            if (fingerprintsKtClass != null) {
-                testValProperties(app, fingerprintsKtClass)
-            }
+            // Test val properties on every *FingerprintsKt file facade
+            // (none exist if all fingerprints are objects).
+            findClassNamesInPackage(group.package_name, classLoader)
+                .filter { it.endsWith("FingerprintsKt") }.sorted()
+                .forEach { testValProperties(app, classLoader.loadClass(it)) }
 
             // Test object : Fingerprint(...) declarations.
             testFingerprintObjects(app, group.package_name, classLoader)
@@ -274,32 +270,23 @@ class FingerprintsKtTest(val apkPath: Path) {
 
     @TestFactory
     fun fingerprintTest(): Iterator<DynamicTest> {
-        val app = FingerprintTestReport.appFor(apkPath) ?: return emptyList<DynamicTest>().iterator()
+        val testApp = FingerprintTestReport.testAppFor(apkPath) ?: return emptyList<DynamicTest>().iterator()
+        val app = testApp.id
         val report = FingerprintTestReport.forApk(apkPath, appVersion)
 
-        fun findFingerprintPackages(rootPackage:String): MutableList<String> =
-            Files.walk(Path(rootPackage))
-                .filter { Files.isRegularFile(it) && it.fileName.toString() == "Fingerprints.kt" }
-                .map {
-                    // drop src/main/java, drop filename → package name
-                    it.parent.invariantSeparatorsPathString.split("/").drop(3)
-                        .joinToString(".")
-                }.toList().toMutableList()
-
-        val packageNames =
-            findFingerprintPackages("src/main/java/io/github/nexalloy/morphe/$app")
-
-        // Add shared fingerprints packages.
-        if (app == "youtube"  || app == "music"){
-            packageNames.addAll(findFingerprintPackages("src/main/java/io/github/nexalloy/morphe/shared"))
+        val sources = Path("src/main/java")
+        val packageNames = testApp.roots.flatMap { root ->
+            Files.walk(sources.resolve("io/github/nexalloy/$root")).use { files ->
+                files.filter { Files.isRegularFile(it) && it.fileName.toString().endsWith("Fingerprints.kt") }
+                    .map { sources.relativize(it.parent).invariantSeparatorsPathString.replace('/', '.') }
+                    .toList()
+            }
         }
 
         return packageNames.distinct().map { packageName ->
             val group = FingerprintTestReport.Group(packageName)
             report.groups.add(group)
-            var category = packageName.split(".").drop(5).joinToString(".")
-            if (category == "") category = "shared"
-            DynamicTest.dynamicTest(category) { testFingerprints(app, group) }
+            DynamicTest.dynamicTest(packageName.removePrefix("io.github.nexalloy.")) { testFingerprints(app, group) }
         }.iterator()
     }
 
