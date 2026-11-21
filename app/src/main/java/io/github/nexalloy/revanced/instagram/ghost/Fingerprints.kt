@@ -5,7 +5,7 @@ import io.github.nexalloy.morphe.accessFlags
 import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
-import io.github.nexalloy.revanced.instagram.isStringPool
+import io.github.nexalloy.revanced.shared.isStringPool
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Modifier
 

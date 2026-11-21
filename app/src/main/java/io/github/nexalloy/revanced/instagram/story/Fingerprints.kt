@@ -3,7 +3,7 @@ package io.github.nexalloy.revanced.instagram.story
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
-import io.github.nexalloy.revanced.instagram.findMethodUsingString
+import io.github.nexalloy.revanced.shared.findMethodUsingString
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.FieldUsingType
 import org.luckypray.dexkit.result.MethodData

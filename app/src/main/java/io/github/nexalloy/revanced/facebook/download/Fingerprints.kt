@@ -5,7 +5,7 @@ import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
-import io.github.nexalloy.revanced.facebook.findMethodUsingString
+import io.github.nexalloy.revanced.shared.findMethodUsingString
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.FieldData
 import org.luckypray.dexkit.result.MethodData

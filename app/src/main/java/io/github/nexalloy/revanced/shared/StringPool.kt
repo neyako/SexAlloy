@@ -1,4 +1,4 @@
-package io.github.nexalloy.revanced.facebook
+package io.github.nexalloy.revanced.shared
 
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.matchers.MethodMatcher
@@ -6,7 +6,7 @@ import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Modifier
 
 /**
- * Facebook keeps many string literals in a few switch methods, `static String pool(int)`. A caller
+ * Meta's apps keep many string literals in a few switch methods, `static String pool(int)`. A caller
  * loads an index and calls the pool instead of holding the string, so a literal either sits in the
  * method that uses it (older builds) or only in the pool (newer ones).
  */
@@ -16,10 +16,10 @@ internal fun MethodData.isStringPool(): Boolean =
 /**
  * Methods that use [value], either directly or by asking the string pool for it.
  *
- * A pool is a packed switch starting at 0 and its default branch holds a string too. In build 588 the
- * cases follow in table order after that default, so the string at position `k` in the code is case
- * `k - 1`; Instagram lays them out last-to-first, so case `count - 1 - k`. Both indexes are tried and a
- * caller must load the index right before calling the pool.
+ * A pool is a packed switch starting at 0 and its default branch holds a string too. In Facebook 588
+ * the cases follow in table order after that default, so the string at position `k` in the code is
+ * case `k - 1`; Instagram 457 lays them out last-to-first, so case `count - 1 - k`. Both indexes are
+ * tried and a caller must load the index right before calling the pool.
  */
 internal fun DexKitBridge.findMethodUsingString(value: String, extra: MethodMatcher.() -> Unit = {}): List<MethodData> {
     val direct = findMethod { matcher { usingEqStrings(value); extra() } }.filterNot { it.isStringPool() }

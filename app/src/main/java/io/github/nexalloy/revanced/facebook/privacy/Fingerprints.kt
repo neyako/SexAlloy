@@ -1,7 +1,7 @@
 package io.github.nexalloy.revanced.facebook.privacy
 
 import io.github.nexalloy.morphe.findMethodListDirect
-import io.github.nexalloy.revanced.facebook.isStringPool
+import io.github.nexalloy.revanced.shared.isStringPool
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Modifier
 
