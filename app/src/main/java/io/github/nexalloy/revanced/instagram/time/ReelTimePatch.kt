@@ -2,6 +2,7 @@ package io.github.nexalloy.revanced.instagram.time
 
 import android.graphics.Color
 import android.view.View
+import app.morphe.extension.shared.Logger
 import io.github.nexalloy.hookMethod
 import io.github.nexalloy.patch
 import io.github.nexalloy.revanced.instagram.download.MediaDownloadCore
@@ -41,7 +42,7 @@ val ShowReelTime = patch(
         after { param ->
             runCatching {
                 val parts = param.result?.let(::partsOf) ?: return@runCatching
-                val media = reelMedia(param.thisObject, setOf(takes[1], takes[2])) ?: return@runCatching
+                val media = reelMedia(param.thisObject, setOf(takes[1], takes[2])) ?: return@runCatching logNoMedia(param.thisObject)
                 val seconds = takenAt.invoke(media) as? Long ?: return@runCatching
                 if (seconds <= 0) return@runCatching
                 val s = session.get(param.thisObject)
@@ -81,14 +82,28 @@ private fun reelMedia(title: Any, skip: Set<Class<*>>): Any? {
 private fun Class<*>.only(type: Class<*>): Field =
     declaredFields.single { it.type == type && !Modifier.isStatic(it.modifiers) }.apply { isAccessible = true }
 
+private var loggedNoMedia = false
+
+private fun logNoMedia(title: Any) {
+    if (loggedNoMedia) return
+    loggedNoMedia = true
+    Logger.printInfo { "Instagram reel time: no media reachable from ${title.javaClass.name}" }
+}
+
+/**
+ * The lines of the title column, made appendable. Instagram builds them with `toList()`, which
+ * returns an immutable list for zero or one line, so that list is swapped for a copy.
+ */
 @Suppress("UNCHECKED_CAST")
 private fun partsOf(column: Any): MutableList<Any?>? {
     var c: Class<*>? = column.javaClass
     while (c != null && c != Any::class.java) {
         val lists = c.declaredFields.filter { !Modifier.isStatic(it.modifiers) && it.type == List::class.java }
         if (lists.size == 1) {
-            val list = runCatching { lists[0].isAccessible = true; lists[0].get(column) }.getOrNull()
-            return (list as? java.util.ArrayList<Any?>)
+            val field = lists[0].apply { isAccessible = true }
+            val list = runCatching { field.get(column) as? List<Any?> }.getOrNull() ?: return null
+            if (list is java.util.ArrayList<Any?>) return list
+            return java.util.ArrayList(list).also { field.set(column, it) }
         }
         c = c.superclass
     }

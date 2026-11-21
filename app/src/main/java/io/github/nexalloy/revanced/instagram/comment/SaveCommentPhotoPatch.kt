@@ -12,7 +12,6 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
 
-private const val GIPHY = "com.instagram.api.schemas.CommentGiphyMediaInfoIntf"
 private const val FUNCTION0 = "kotlin.jvm.functions.Function0"
 private const val SAVE_ACTION = "SaveMedia"
 private const val GIF_NODES = 120
@@ -24,12 +23,19 @@ val SaveCommentPhoto = patch(
 ) {
     dependsOn(MediaDownloadCore)
     val renderer = ::commentMenuRendererFingerprint.method
-    val infoGetter = ::commentMediaInfoGetterFingerprint.method.apply { isAccessible = true }
-    val rawType = infoGetter.declaringClass
-    val gifGetter = rawType.methods.single { it.parameterCount == 0 && it.returnType.name == GIPHY }
-    val mediaGetter = infoGetter.returnType.methods.single { it.parameterCount == 0 && it.returnType == MediaResolver.mediaType }
     val selectedType = renderer.parameterTypes[1]
-    val rawField = selectedType.declaredFields.single { it.type == rawType }.apply { isAccessible = true }
+    // The selected comment keeps its GIF and its photo or video one level down, in two of its parts.
+    fun part(holds: (Class<*>) -> Boolean): (Any) -> Any? {
+        for (outer in selectedType.declaredFields) {
+            val inner = outer.type.declaredFields.firstOrNull { !Modifier.isStatic(it.modifiers) && holds(it.type) } ?: continue
+            outer.isAccessible = true
+            inner.isAccessible = true
+            return { selected -> outer.get(selected)?.let(inner::get) }
+        }
+        error("no such part in ${selectedType.name}")
+    }
+    val gifOf = part { it.name.startsWith(GIPHY) }
+    val mediaOf = part { it == MediaResolver.mediaType }
 
     val save = ::menuActionSingletonsFingerprint.fieldList.firstNotNullOfOrNull { f ->
         runCatching { f.isAccessible = true; f.get(null) }.getOrNull()?.takeIf { it.toString() == SAVE_ACTION }
@@ -49,10 +55,8 @@ val SaveCommentPhoto = patch(
 
     fun target(ctx: Context, selected: Any): Target? {
         if (!selectedType.isInstance(selected)) return null
-        val raw = rawField.get(selected) ?: return null
-        runCatching { gifGetter.invoke(raw) }.getOrNull()?.let { gif -> return gifUrl(gif)?.let { Target(it, true) } }
-        val info = runCatching { infoGetter.invoke(raw) }.getOrNull() ?: return null
-        val media = runCatching { mediaGetter.invoke(info) }.getOrNull() ?: return null
+        gifOf(selected)?.let { gif -> return gifUrl(gif)?.let { Target(it, true) } }
+        val media = mediaOf(selected) ?: return null
         val item = MediaResolver.single(ctx, media) ?: return null
         return Target(item.url, false, item)
     }

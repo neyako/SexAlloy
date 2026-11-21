@@ -26,7 +26,7 @@ val ShowPostTime = patch(
     }
 
     scope(::feedFooterBuilderFingerprint.method)
-    // The Compose comment header is found by a debug string that 457 no longer ships.
+    // The Compose comment header is found by a debug string that 456 no longer ships.
     // Without it posts and list comments still get exact times, the Compose header keeps the relative one.
     runCatching { scope(::commentHeaderFingerprint.method) }
         .onFailure { Logger.printInfo { "Instagram post time: Compose comment header not found: ${it.message}" } }

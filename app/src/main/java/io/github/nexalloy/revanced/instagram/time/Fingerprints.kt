@@ -75,8 +75,8 @@ private fun DexKitBridge.askingFormatter(marker: String, type: StringMatchType) 
 
 val feedFooterBuilderFingerprint = findMethodDirect { askingFormatter("CoalescedFooterUseCase#getUiState", StringMatchType.Equals) }
 
-// TODO: 457 drops Compose trace strings, so this needs a structural anchor. ShowPostTime treats it as optional.
-@get:RequireAppVersion(maxVersion = "456.99.99.99.99")
+// TODO: 456 drops Compose trace strings, so this needs a structural anchor. ShowPostTime treats it as optional.
+@get:RequireAppVersion(maxVersion = "455.99.99.99.99")
 val commentHeaderFingerprint = findMethodDirect {
     findMethod {
         matcher { usingStrings(listOf("com.instagram.comments.mvvm.view.compose.CommentAuthorHeader ("), StringMatchType.StartsWith) }
@@ -101,13 +101,23 @@ val commentRowTimeReadersFingerprint = findMethodListDirect {
 
 private const val PURGE = "_"
 
+// Up to 455 the render method carries a trace marker. 456 dropped it, so fall back to shape: the
+// title component is the one class that builds subtitle lines, and render is its only public method.
 val reelTitleRenderFingerprint = findMethodDirect {
     findMethod {
         matcher { usingStrings(listOf(PURGE + "ClipsTitleAndSubtitleComponent_render"), StringMatchType.Contains) }
-    }.single { !Modifier.isStatic(it.modifiers) }
+    }.singleOrNull { !Modifier.isStatic(it.modifiers) } ?: run {
+        val text = reelSubtitleTextClassFingerprint()
+        val title = findMethod {
+            matcher { addInvoke { declaredClass(text.name); name = "<init>" } }
+        }.map { it.declaredClassName }.distinct().single()
+        findMethod {
+            matcher { declaredClass(title); paramCount = 1; modifiers = Modifier.PUBLIC }
+        }.single { !Modifier.isStatic(it.modifiers) && !it.isConstructor && it.returnTypeName != "void" }
+    }
 }
 
-// Matched by its constructor: the "CyclicSubtitleWithIconComponent_render" marker string is gone in 457.
+// Matched by its constructor: the "CyclicSubtitleWithIconComponent_render" marker string is gone in 456.
 val reelSubtitleTextClassFingerprint = findClassDirect {
     findMethod {
         matcher {

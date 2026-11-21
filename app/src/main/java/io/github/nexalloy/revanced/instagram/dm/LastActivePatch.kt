@@ -18,7 +18,7 @@ val ShowLastActive = patch(
 ) {
     val text = ::presenceTextMethod.method
     val lastActive = ::presenceLastActiveField.field.apply { isAccessible = true }
-    // Either the helper and window constant (up to 456) or the flag 457 inlines in their place.
+    // Either the helper and window constant (up to 455) or the flag 456 inlines in their place.
     val activeCheck = runCatching { ::presenceActiveCheckMethod.method.apply { isAccessible = true } }.getOrNull()
     val window = runCatching { ::presenceActiveWindowField.field.apply { isAccessible = true } }.getOrNull()
     val activeFlag = if (activeCheck == null) ::presenceActiveFlagField.field.apply { isAccessible = true } else null
@@ -40,7 +40,7 @@ val ShowLastActive = patch(
     }
 }
 
-/** How long Instagram keeps showing Active now, as inlined into the text method from 457. */
+/** How long Instagram keeps showing Active now, as inlined into the text method from 456. */
 private const val INLINED_ACTIVE_WINDOW_MS = 390_000L
 
 private fun exact(res: Resources, at: Long): String? {

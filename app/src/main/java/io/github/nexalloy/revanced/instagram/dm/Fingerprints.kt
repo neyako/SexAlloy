@@ -1,6 +1,5 @@
 package io.github.nexalloy.revanced.instagram.dm
 
-import app.morphe.extension.shared.Logger
 import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.findFieldDirect
@@ -184,15 +183,15 @@ internal val voiceLocalPathMethod = findMethodDirect {
     }.single()
 }
 
-internal val voicePlayableMethod = findMethodDirect {
-    val voice = voiceClassName()
-    val localPath = voiceLocalPathMethod(this)
+// A voice message carries a Media; its audio, URL included, is read through this getter.
+internal val voiceAudioInfoMethod = findMethodDirect {
     findMethod {
         matcher {
-            paramTypes(voice)
-            addInvoke(localPath.descriptor)
+            declaredClass("com.instagram.feed.media.Media")
+            paramCount = 0
+            returnType = "com.instagram.api.schemas.AudioInfoIntf"
         }
-    }.single { it.className != voice && it.returnTypeName != "void" && it.isStaticMethod() }
+    }.single()
 }
 
 private fun MethodData.isStaticMethod() = java.lang.reflect.Modifier.isStatic(modifiers)
@@ -201,24 +200,26 @@ internal val messageParseMethod = findMethodDirect {
     messageParserClass().methods.first(::isJsonEntryPoint)
 }
 
+private const val ROW_DELETE_ERROR = "Both message ID and client context is null."
+
+// Deletes one message row. Up to 455 this is a (thread, id, client id) method on the message table
+// that a disk job calls. 456 inlined it into that job's run(), which holds the two ids in fields.
 private fun DexKitBridge.messageRowDelete(): MethodData = once("messageRowDelete") {
     val rowSignature: MethodMatcher.() -> Unit = {
         paramTypes(DIRECT_THREAD_KEY, STRING, STRING)
         returnType = "void"
     }
 
-    methodsUsingStrings(listOf("server_item_id=='", "client_item_id=='"), rowSignature)
-        .firstOrNull()
-        ?: methodsUsingStrings(listOf("Both message ID and client context is null."), rowSignature)
-            .first()
+    methodsUsingStrings(listOf("server_item_id=='", "client_item_id=='"), rowSignature).firstOrNull()
+        ?: methodsUsingStrings(listOf(ROW_DELETE_ERROR), rowSignature).firstOrNull()
+        ?: findMethod { matcher { name = "run"; paramCount = 0; usingEqStrings(ROW_DELETE_ERROR) } }.single()
 }
 
 internal val messageRowDeleteMethod = findMethodDirect { messageRowDelete() }
 
 private fun DexKitBridge.threadRemoveMessage(): MethodData = once<MethodData>("threadRemoveMessage") {
     val rowDelete = messageRowDelete()
-    val diskJobs = rowDelete.callers
-    Logger.printInfo { "SaveDeletedMessages: disk delete jobs -> ${diskJobs.size}" }
+    val diskJobs = if (rowDelete.name == "run") listOf(rowDelete) else rowDelete.callers
 
     val visitedJobClasses = HashSet<String>()
 
@@ -237,9 +238,6 @@ private fun DexKitBridge.threadRemoveMessage(): MethodData = once<MethodData>("t
                     params.count { it == STRING } >= 2
                 if (!looksLikeRemoval) continue
 
-                Logger.printInfo {
-                    "SaveDeletedMessages: removal method -> ${creator.className}.${creator.name}"
-                }
                 return@once creator
             }
         }
@@ -301,8 +299,15 @@ internal val threadMergeMethod = findMethodDirect {
     }.single()
 }
 
+private fun DexKitBridge.messageFromBlob(): MethodData = once("messageFromBlob") {
+    methodsUsingStrings(listOf("DirectMessageSQLiteTable.parseMessage"))
+        .single { it.paramTypeNames == listOf("byte[]") }
+}
+
+internal val messageFromBlobMethod = findMethodDirect { messageFromBlob() }
+
 internal val messageToRowMethod = findMethodDirect {
-    val table = messageRowDelete().className
+    val table = messageFromBlob().className
     findMethod {
         matcher {
             declaredClass(table)
@@ -315,15 +320,8 @@ internal val messageToRowMethod = findMethodDirect {
     }
 }
 
-internal val messageFromBlobMethod = findMethodDirect {
-    val table = messageRowDelete().className
-    methodsUsingStrings(listOf("DirectMessageSQLiteTable.parseMessage")) {
-        declaredClass(table)
-    }.single { it.paramTypeNames == listOf("byte[]") }
-}
-
 internal val messageTableGetterMethod = findMethodDirect {
-    val table = messageRowDelete().className
+    val table = messageFromBlob().className
     findMethod {
         matcher {
             declaredClass(table)
@@ -350,9 +348,9 @@ internal val presenceLastActiveField = findFieldDirect {
     presenceTextMethod().instructions.first { it.opcode == OP_IGET_WIDE }.fieldRef!!
 }
 
-// Up to 456 the text method asks a helper whether the person is active and reads the window from a
-// constant field. 457 inlines both: a flag on the item, then a literal. The patch takes whichever exists.
-@get:RequireAppVersion(maxVersion = "456.99.99.99.99")
+// Up to 455 the text method asks a helper whether the person is active and reads the window from a
+// constant field. 456 inlines both: a flag on the item, then a literal. The patch takes whichever exists.
+@get:RequireAppVersion(maxVersion = "455.99.99.99.99")
 internal val presenceActiveCheckMethod = findMethodDirect {
     val item = presenceLastActiveField().declaredClassName
     presenceTextMethod().instructions.mapNotNull { it.methodRef }.first {
@@ -360,12 +358,12 @@ internal val presenceActiveCheckMethod = findMethodDirect {
     }
 }
 
-@get:RequireAppVersion(maxVersion = "456.99.99.99.99")
+@get:RequireAppVersion(maxVersion = "455.99.99.99.99")
 internal val presenceActiveWindowField = findFieldDirect {
     presenceTextMethod().instructions.first { it.opcode == OP_SGET_WIDE }.fieldRef!!
 }
 
-@get:RequireAppVersion(minVersion = "457.0.0.0.0")
+@get:RequireAppVersion(minVersion = "456.0.0.0.0")
 internal val presenceActiveFlagField = findFieldDirect {
     val item = presenceLastActiveField().declaredClassName
     presenceTextMethod().instructions.first { it.opcode == OP_IGET_BOOLEAN && it.fieldRef?.declaredClassName == item }.fieldRef!!

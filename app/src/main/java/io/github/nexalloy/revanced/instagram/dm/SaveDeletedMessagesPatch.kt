@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
 import app.morphe.extension.shared.Logger
+import io.github.nexalloy.hookMethod
 import io.github.nexalloy.patch
 import org.luckypray.dexkit.wrap.DexField
 import java.io.ByteArrayOutputStream
@@ -58,8 +59,8 @@ val SaveDeletedMessages = patch(
     val kept = KeptMessages()
 
     val keptMedia = KeptMediaIds(appContext)
-    val voicePlayable = ::voicePlayableMethod.method.apply { isAccessible = true }
-    val media = UnsentMediaCache(appContext, message, keptMedia, voicePlayable)
+    val voiceAudio = VoiceAudio(::messageVoiceMediaField.field.type, ::voiceAudioInfoMethod.method)
+    val media = UnsentMediaCache(appContext, message, keptMedia, voiceAudio)
     keptMedia.onEvict = { ids -> media.drop(ids) }
 
     val shadow = ShadowStore(
@@ -144,10 +145,20 @@ val SaveDeletedMessages = patch(
         }
     }
 
-    ::messageRowDeleteMethod.hookMethod {
+    // Up to 455 the table's delete(thread, id, client id). From 456 the disk job's run(), ids in its fields.
+    val rowDelete = ::messageRowDeleteMethod.method
+    val jobIds = if (rowDelete.parameterCount > 0) null else rowDelete.declaringClass.declaredFields
+        .filter { it.type == String::class.java && !Modifier.isStatic(it.modifiers) }
+        .onEach { it.isAccessible = true }
+    rowDelete.hookMethod {
         before { param ->
-            if (shadow.table == null) shadow.table = param.thisObject
-            if (kept.mentionedIn(param.args)) param.result = null
+            val ids = if (jobIds == null) {
+                if (shadow.table == null) shadow.table = param.thisObject
+                param.args
+            } else {
+                Array<Any?>(jobIds.size) { jobIds[it].get(param.thisObject) }
+            }
+            if (kept.mentionedIn(ids)) param.result = null
         }
     }
 
@@ -414,7 +425,7 @@ private class UnsentMediaCache(
     context: Context,
     private val message: MessageAccess,
     private val kept: KeptMediaIds,
-    private val voicePlayable: java.lang.reflect.Method?,
+    private val voiceAudio: VoiceAudio,
 ) {
     private val pendingRetentionMs = TimeUnit.HOURS.toMillis(PENDING_MEDIA_HOURS.coerceAtLeast(1).toLong())
     private val keptMaxBytes = if (KEPT_MEDIA_MAX_MB <= 0) Long.MAX_VALUE else KEPT_MEDIA_MAX_MB.toLong() * 1024 * 1024
@@ -562,25 +573,11 @@ private class UnsentMediaCache(
 
     private fun downloadVoice(id: String, voice: Any, dir: File) {
         if (dir.listFiles().orEmpty().any { it.name.startsWith("voice.") && it.length() > 0 }) return
-        val source = voicePlayable?.invoke(null, voice) ?: error("no voice source")
-        val url = firstHttpString(source) ?: error("voice source has no URL")
+        val url = voiceAudio.url(voice) ?: error("voice message has no URL")
         val ext = Uri.parse(url).path.orEmpty().substringAfterLast('.', "").lowercase()
             .takeIf { it.length in 2..4 } ?: "mp4"
         download(url, File(dir, "voice.$ext"))
         Logger.printDebug { "SaveDeletedMessages: cached voice message $id" }
-    }
-
-    private fun firstHttpString(obj: Any): String? {
-        var cls: Class<*>? = obj.javaClass
-        while (cls != null && !isPlatform(cls.name)) {
-            for (field in cls.declaredFields) {
-                if (Modifier.isStatic(field.modifiers) || field.type != String::class.java) continue
-                val value = runCatching { field.isAccessible = true; field.get(obj) as? String }.getOrNull()
-                if (value != null && value.startsWith("http")) return value
-            }
-            cls = cls.superclass
-        }
-        return null
     }
 
     private fun collect(msg: Any): List<UrlSlot> {

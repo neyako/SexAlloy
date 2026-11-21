@@ -2,16 +2,17 @@ package io.github.nexalloy.revanced.instagram.comment
 
 import io.github.nexalloy.morphe.findFieldListDirect
 import io.github.nexalloy.morphe.findMethodDirect
-import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.ClassData
 import java.lang.reflect.Modifier
 
-private const val GIPHY = "com.instagram.api.schemas.CommentGiphyMediaInfoIntf"
+// 456 holds the class in the comment state, 457 its interface (same name plus "Intf").
+internal const val GIPHY = "com.instagram.api.schemas.CommentGiphyMediaInfo"
 private const val FRAGMENT = "androidx.fragment.app.Fragment"
 
-private fun ClassData.isRawComment() = isInterface() && methods.any { it.paramCount == 0 && it.returnTypeName == GIPHY }
-
-private fun ClassData.isInterface() = Modifier.isInterface(modifiers)
+// The comment a menu is opened for: a state object whose parts hold the comment's GIF and its photo.
+private fun ClassData.isSelectedComment() = fields.any { part ->
+    runCatching { part.type.fields.any { it.typeName.startsWith(GIPHY) } }.getOrDefault(false)
+}
 
 val commentMenuRendererFingerprint = findMethodDirect {
     findMethod {
@@ -21,22 +22,7 @@ val commentMenuRendererFingerprint = findMethodDirect {
             paramTypes(null, null, null, "java.util.List", "float")
             addInvoke { declaredClass(FRAGMENT); name = "requireContext" }
         }
-    }.single { m -> m.paramTypes[1].fields.any { it.type.isRawComment() } }
-}
-
-private fun DexKitBridge.rawCommentInterface(): ClassData =
-    commentMenuRendererFingerprint().paramTypes[1].fields.map { it.type }.first { it.isRawComment() }
-
-val commentMediaInfoGetterFingerprint = findMethodDirect {
-    val raw = rawCommentInterface()
-    val tree = findMethod {
-        matcher {
-            declaredClass { addInterface(raw.name) }
-            paramCount = 0
-            usingNumbers("media_comment_info".hashCode())
-        }
-    }.filter { !Modifier.isStatic(it.modifiers) && '.' in it.returnTypeName }.map { it.name }.distinct().single()
-    raw.methods.single { it.name == tree && it.paramCount == 0 }
+    }.single { it.paramTypes[1].isSelectedComment() }
 }
 
 val menuActionSingletonsFingerprint = findFieldListDirect {
