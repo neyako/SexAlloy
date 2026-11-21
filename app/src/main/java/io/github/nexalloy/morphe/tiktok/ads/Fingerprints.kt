@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.tiktok.ads
 
+import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.findMethodListDirect
@@ -61,6 +62,8 @@ internal object OfflineVideoHitCacheFingerprint : Fingerprint(
     strings = listOf("processOfflineVideoHitCache error"),
 )
 
+// Optional: coldStartFeedCacheFingerprints falls back to the static getters when this is gone.
+@SkipTest
 internal object ColdStartFeedCacheFingerprint : Fingerprint(
     classFingerprint = OfflineVideoHitCacheFingerprint,
     accessFlags = listOf(AccessFlags.STATIC),

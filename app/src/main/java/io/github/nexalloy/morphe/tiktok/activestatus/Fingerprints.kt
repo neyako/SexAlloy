@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.tiktok.activestatus
 
+import io.github.nexalloy.AllowAbstract
 import io.github.nexalloy.morphe.findFieldListDirect
 import io.github.nexalloy.morphe.findMethodDirect
 
@@ -7,10 +8,13 @@ internal const val REPORT_PATH = "/tiktok/v1/activity_status/report"
 internal const val FETCH_PATH = "/tiktok/v1/activity_status/fetch"
 internal const val FETCH_AS_REPORT = "fetch_as_report"
 
+// Both are Retrofit interface methods: the patch proxies the interface instead of hooking them.
+@get:AllowAbstract
 val activityStatusReportFingerprint = findMethodDirect {
     findMethod { matcher { addAnnotation { usingStrings(REPORT_PATH) } } }.single()
 }
 
+@get:AllowAbstract
 val activityStatusFetchFingerprint = findMethodDirect {
     findMethod { matcher { addAnnotation { usingStrings(FETCH_PATH) } } }.single()
 }

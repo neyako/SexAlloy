@@ -30,6 +30,8 @@ val GhostMode = patch(
         val apiClass = api.findClassOrNull(classLoader)
         names.mapNotNull { name ->
             val declared = apiClass?.declaredMethods?.firstOrNull { it.name == name }
+            // The API is there without this report (47.8 dropped the story reveal one): nothing to block.
+            if (apiClass != null && declared == null) return@mapNotNull null
             val path = declared?.let(::retrofitPath) ?: KNOWN_REPORT_PATHS[name] ?: return@mapNotNull null
             val suspend = declared?.let { it.returnType == Any::class.java } ?: (name == "reportStoryReveal")
             Reporter(name, ReportRequestBlocker.normalize(path), suspend)
@@ -45,7 +47,7 @@ val GhostMode = patch(
 
     run {
         val names = reporters.filter { it.suspend }.map { it.name }.toSet()
-        check(names.isNotEmpty()) { "no suspend reporter on this build" }
+        if (names.isEmpty()) return@run
         val methods = REPORTER_WRAPPERS.mapNotNull { it.findClassOrNull(classLoader) }
             .flatMap { wrapper -> wrapper.declaredMethods.filter { it.name in names && it.returnType == Any::class.java } }
         check(methods.isNotEmpty()) { "no wrapper declares ${names.joinToString()}" }

@@ -59,8 +59,10 @@ val commentPhotoSaverFingerprint = findMethodDirect {
     findMethod {
         matcher { name = "run"; returnType = "void"; paramCount = 0; usingStrings("CommentPhotoSaver@") }
     }.single { m ->
+        // The trailing flags vary by version: two booleans up to 47.8, three from 47.9.
         m.declaredClass!!.methods.any {
-            it.isConstructor && it.paramTypeNames == listOf(ACTIVITY, URL_MODEL, STRING, "kotlin.jvm.functions.Function1", "boolean", "boolean")
+            it.isConstructor && it.paramTypeNames.take(4) == listOf(ACTIVITY, URL_MODEL, STRING, "kotlin.jvm.functions.Function1") &&
+                it.paramTypeNames.drop(4).let { flags -> flags.isNotEmpty() && flags.all { f -> f == "boolean" } }
         }
     }
 }
