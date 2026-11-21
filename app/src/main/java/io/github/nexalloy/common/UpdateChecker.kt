@@ -74,8 +74,9 @@ data class VersionInfo(val versionCode: Int, val versionName: String) {
     }
 }
 
-const val OWNER = "NexAlloy"
-const val REPO = "NexAlloy"
+// This fork's releases, not upstream NexAlloy: an upstream build would drop the fork's patches.
+const val OWNER = "neyako"
+const val REPO = "SexAlloy"
 const val currentVersionCode = BuildConfig.VERSION_CODE
 const val CHECK_BETA_UPDATES = "check_beta_updates"
 
@@ -127,6 +128,12 @@ class UpdateChecker(private val checkBetaUpdates: () -> Boolean = { false }) : C
                     "https://api.github.com/repos/$OWNER/$REPO/releases/$releasePath",
                     headers = mapOf("Accept" to "application/vnd.github.html+json")
                 )
+                if (response.statusCode == 404) {
+                    // Nothing published on this channel yet.
+                    Logger.printInfo { "no $releasePath release in $OWNER/$REPO" }
+                    if (!silent) Utils.showToastLong("NexAlloy is up to date.")
+                    return@launch
+                }
                 if (response.statusCode != 200) {
                     Logger.printException { "Failed to fetch latest release: HTTP ${response.statusCode}" }
                     return@launch
