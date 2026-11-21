@@ -286,6 +286,8 @@ class PatchExecutor(
             if (!isEnabled) return@forEach // Pref Key
             runCatching { hook.run(this) }.onFailure { err ->
                 XposedBridge.log(err)
+                // Also to logcat: the framework's own log is often switched off.
+                Logger.printInfo({ "Patch failed: ${hook.name}" }, err as? Exception ?: Exception(err))
                 failedPatches.add(hook)
             }.onSuccess {
                 appliedPatches.add(hook)
@@ -296,6 +298,9 @@ class PatchExecutor(
     private fun finalizePatching() {
         cache.saveCache()
         val success = failedPatches.isEmpty()
+        Logger.printInfo {
+            "${lpparam.packageName} patches: ${appliedPatches.size} applied, failed: ${failedPatches.map { it.name }}"
+        }
         if (!success) {
             XposedBridge.log("${lpparam.applicationInfo.packageName} version: ${getAppVersion()}")
             Utils.showToastLong("Error while apply following patches:\n${failedPatches.joinToString { it.name }}")
