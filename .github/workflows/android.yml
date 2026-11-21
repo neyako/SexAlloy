@@ -1,8 +1,21 @@
 name: Android CI
 
+# Every push to main publishes a dev build (the `autobuild` prerelease the in-app nightly
+# update check reads). Every RELEASE_EVERY-th change since the last stable release also
+# publishes that same build as a stable `2.0.N` release, N being the version code.
+
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a stable release now
+        type: boolean
+        default: false
+
+env:
+  RELEASE_EVERY: 4
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -19,6 +32,36 @@ jobs:
     - uses: actions/checkout@v6
       with:
         submodules: true
+        fetch-depth: 0
+
+    - name: Plan version
+      id: plan
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        FORCE_RELEASE: ${{ inputs.release }}
+      run: |
+        # Releases rather than git tags: tags fetched from upstream NexAlloy are not ours.
+        LAST=$(gh release list --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' |
+          grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+        BASE=$(sed -n 's/^ *versionCode = \([0-9]\+\).*/\1/p' app/build.gradle.kts)
+        [ -n "$BASE" ] || { echo "::error::versionCode not found in app/build.gradle.kts"; exit 1; }
+        if [ -z "$LAST" ]; then
+          CODE=$BASE
+          RELEASE=true
+        else
+          # Dev builds already carry the next release's code, so they install over the last release.
+          NEXT=$(( ${LAST##*.} + 1 ))
+          CODE=$(( BASE > NEXT ? BASE : NEXT ))
+          # First-parent: a merged branch (an upstream sync, a pull request) counts as one change.
+          SINCE=$(git rev-list --count --first-parent "$LAST..HEAD")
+          if [ "$SINCE" -ge "$RELEASE_EVERY" ] || [ "$FORCE_RELEASE" = "true" ]; then RELEASE=true; else RELEASE=false; fi
+        fi
+        sed -i "s/^\( *versionCode = \)[0-9]\+/\1$CODE/" app/build.gradle.kts
+        VERSION=$(sed -n 's/^ *versionName = "\(.*\)\$versionCode"/\1/p' app/build.gradle.kts)$CODE
+        echo "last=$LAST" >> "$GITHUB_OUTPUT"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+        echo "Version $VERSION, last release ${LAST:-none}, ${SINCE:-0} changes since, release: $RELEASE"
 
     - name: set up JDK
       uses: actions/setup-java@v5
@@ -31,12 +74,21 @@ jobs:
       run: chmod +x gradlew
 
     - name: Write key
+      env:
+        KEYSTORE: ${{ secrets.KEYSTORE }}
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+        KEYSTORE_ALIAS_PASSWORD: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
       run: |
-        echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
-        echo KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
-        echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
-        echo KEYSTORE_FILE=../key.jks >> signing.properties
-        echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
+        # Without the key the APK would be unsigned and no phone would install it.
+        [ -n "$KEYSTORE" ] || { echo "::error::Add the KEYSTORE, KEYSTORE_PASSWORD, KEYSTORE_ALIAS and KEYSTORE_ALIAS_PASSWORD secrets"; exit 1; }
+        echo "$KEYSTORE" | base64 --decode > key.jks
+        {
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+          echo "KEYSTORE_ALIAS=$KEYSTORE_ALIAS"
+          echo "KEYSTORE_ALIAS_PASSWORD=$KEYSTORE_ALIAS_PASSWORD"
+          echo "KEYSTORE_FILE=../key.jks"
+        } > signing.properties
 
     - name: Build Debug
       run: ./gradlew assembleDebug
@@ -58,30 +110,45 @@ jobs:
           app/build/outputs/apk/release
           app/build/outputs/mapping/release/mapping.txt
 
-    - name: Update AutoBuild Release
+    - name: Publish dev build
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        LAST: ${{ steps.plan.outputs.last }}
       run: |
-        LATEST_REL=$(gh release view --json tagName -q .tagName)
-        GIT_DESCRIBE=$(git rev-parse --short HEAD)
+        COMMIT=$(git rev-parse --short HEAD)
         BUILD_TIME=$(TZ=UTC date --iso-8601=seconds)
         BUILD_TIME_TEXT=$(LC_ALL=C TZ=UTC date --date="$BUILD_TIME" '+%B %-d, %Y %H:%M')
-        RELEASE_NOTES=$(mktemp)
-        cat > "$RELEASE_NOTES" <<EOF
-        Nightly build from commit ${GIT_DESCRIBE}.
-        Build time: <relative-time tense="past" datetime="${BUILD_TIME}">${BUILD_TIME_TEXT}</relative-time>
-        See changes: https://github.com/${{ github.repository }}/compare/${LATEST_REL}...main
-        EOF
-        APK_NAME="NexAlloy-${GIT_DESCRIBE}.apk"
+        NOTES=$(mktemp)
+        {
+          echo "Dev build from commit ${COMMIT}."
+          echo "Build time: <relative-time tense=\"past\" datetime=\"${BUILD_TIME}\">${BUILD_TIME_TEXT}</relative-time>"
+          [ -z "$LAST" ] || echo "See changes: https://github.com/${{ github.repository }}/compare/${LAST}...main"
+        } > "$NOTES"
+        APK="NexAlloy-${COMMIT}.apk"
+        cp app/build/outputs/apk/release/app-release.apk "$APK"
+
+        git tag --force autobuild
+        git push --force origin autobuild
+        gh release view autobuild > /dev/null 2>&1 ||
+          gh release create autobuild --prerelease --title "Dev Build" --notes-file "$NOTES"
         PREVIOUS_ASSETS=$(gh release view autobuild --json assets --jq '.assets[].name')
-        cd app/build/outputs/apk/release/
-        mv app-release.apk "$APK_NAME"
-        gh release upload autobuild "$APK_NAME" --clobber
-        gh release edit autobuild \
-          --title "Nightly Build" \
-          --notes-file "$RELEASE_NOTES"
+        gh release upload autobuild "$APK" --clobber
+        gh release edit autobuild --prerelease --title "Dev Build" --notes-file "$NOTES"
+        # The update check expects exactly one APK here.
         while IFS= read -r asset; do
-          if [[ "$asset" == NexAlloy-*.apk && "$asset" != "$APK_NAME" ]]; then
+          if [[ "$asset" == NexAlloy-*.apk && "$asset" != "$APK" ]]; then
             gh release delete-asset autobuild "$asset" --yes
           fi
         done <<< "$PREVIOUS_ASSETS"
+
+    - name: Publish stable release
+      if: steps.plan.outputs.release == 'true'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.plan.outputs.version }}
+        LAST: ${{ steps.plan.outputs.last }}
+      run: |
+        APK="NexAlloy-${VERSION}.apk"
+        cp app/build/outputs/apk/release/app-release.apk "$APK"
+        gh release create "$VERSION" "$APK" --target "$GITHUB_SHA" --title "$VERSION" --latest \
+          --generate-notes ${LAST:+--notes-start-tag "$LAST"}
