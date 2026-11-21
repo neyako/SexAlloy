@@ -12,9 +12,9 @@ internal const val MEDIA = "com.instagram.feed.media.Media"
 private const val PANDO_VIDEO_VERSION = "com.instagram.api.schemas.ImmutablePandoVideoVersion"
 private const val POST_MENU_NOTE = "com.instagram.barcelona.feed.post.actionmenu.PostActionMenuSheet.<anonymous> (PostActionMenuSheet.kt:"
 private const val MEDIA_MENU_NOTE = "com.instagram.barcelona.postmedia.ui.MediaActionMenuSheet.<anonymous> (MediaActionMenuSheet.kt:"
+private const val ACTIVITY = "android.app.Activity"
 private const val MENU_ICON_NOTE = "com.instagram.barcelona.common.ui.listcell.getMenuRowEndIcon (BdsListCell.kt:"
 
-private const val OP_CHECK_CAST = 0x1f
 private const val OP_INSTANCE_OF = 0x20
 private const val OP_SGET_OBJECT = 0x62
 private const val OP_INVOKE_VIRTUAL = 0x6e
@@ -22,17 +22,33 @@ private const val OP_INVOKE_STATIC = 0x71
 
 private fun InstructionData.call(): MethodData? = methodRef
 
-val postMenuRowsFingerprint = findMethodDirect {
-    findMethod { matcher { name = "invoke"; usingStrings(POST_MENU_NOTE) } }.single()
-}
-
-val mediaMenuRowsFingerprint = findMethodDirect {
-    findMethod { matcher { name = "invoke"; usingStrings(MEDIA_MENU_NOTE) } }.single()
-}
+// DexKit cannot decode methods that hold emoji strings. They are never the target, so treat them as empty.
+private fun MethodData.decoded(): List<InstructionData> = runCatching { instructions }.getOrDefault(emptyList())
 
 val copyLinkActionFingerprint = findClassDirect {
     findClass {
         matcher { addMethod { name = "toString"; usingEqStrings("CopyLinkAction") } }
+    }.single()
+}
+
+// 456 stripped the Compose trace strings. The post menu lambda is the one that holds the post and its
+// Activity and draws the CopyLinkAction row.
+val postMenuRowsFingerprint = findMethodDirect {
+    findMethod { matcher { name = "invoke"; usingStrings(POST_MENU_NOTE) } }.ifEmpty {
+        val action = copyLinkActionFingerprint().name
+        findMethod {
+            matcher { name = "invoke"; declaredClass { addFieldForType(MEDIA); addFieldForType(ACTIVITY) } }
+        }.filter { m -> m.decoded().any { it.opcode == OP_INSTANCE_OF && it.classRef?.name == action } }
+    }.single()
+}
+
+// The media menu lambda is the one that draws the rows of the SaveImage/ShareVia/... action enum.
+val mediaMenuRowsFingerprint = findMethodDirect {
+    findMethod { matcher { name = "invoke"; usingStrings(MEDIA_MENU_NOTE) } }.ifEmpty {
+        val actions = findClass { matcher { usingEqStrings("SaveImage", "ShareVia", "QuoteMedia") } }.single().name
+        findMethod {
+            matcher { name = "invoke"; addInvoke(copyLinkRow().row.descriptor) }
+        }.filter { m -> m.decoded().any { it.classRef?.name == actions } }
     }.single()
 }
 
@@ -75,9 +91,14 @@ val menuClickModifierFingerprint = findMethodDirect { copyLinkRow().click }
 val menuRoleFingerprint = findMethodDirect { copyLinkRow().role }
 val menuBaseModifierFingerprint = findFieldDirect { copyLinkRow().base.fieldRef!! }
 
+// getMenuRowEndIcon(composer, icon, defaults, tinted) sits next to the row composable in BdsListCell.kt.
 val menuRowIconFingerprint = findMethodDirect {
     findMethod {
         matcher { paramTypes(null, "int", "int", "boolean"); usingStrings(MENU_ICON_NOTE) }
+    }.ifEmpty {
+        findMethod {
+            matcher { declaredClass = copyLinkRow().row.declaredClassName; paramTypes(null, "int", "int", "boolean") }
+        }
     }.single { Modifier.isStatic(it.modifiers) }
 }
 
@@ -91,10 +112,11 @@ val mediaMenuIconFingerprint = findMethodDirect {
     }
 }
 
+// The controller is the class whose method logs the copy_link tap, the one that is closed afterwards.
 val postMenuCloseFingerprint = findMethodDirect {
     val code = findMethod { matcher { name = "invoke"; usingEqStrings("copy_link", "feed_action_sheet") } }.single().instructions
     val at = code.indexOfFirst { it.string == "copy_link" }
-    val controller = (at downTo 0).map { code[it] }.first { it.opcode == OP_CHECK_CAST }.classRef!!.name
+    val controller = code.drop(at).first { it.call() != null }.call()!!.declaredClassName
     val sheet = code.indexOfFirst { it.string == "feed_action_sheet" }
     code.drop(sheet).first {
         it.opcode == OP_INVOKE_VIRTUAL && it.call()?.let { m ->
@@ -115,10 +137,31 @@ val versionUrlFingerprint = findMethodDirect { pandoGetter(PANDO_VIDEO_VERSION, 
 val versionWidthFingerprint = findMethodDirect { pandoGetter(PANDO_VIDEO_VERSION, "width", "java.lang.Integer") }
 val versionHeightFingerprint = findMethodDirect { pandoGetter(PANDO_VIDEO_VERSION, "height", "java.lang.Integer") }
 
-val mediaViewerTopBarInitFingerprint = findMethodDirect {
-    val owner = findMethod {
-        matcher { name = "invoke"; usingStrings("com.instagram.barcelona.feed.mediaviewer.ui.MediaViewerTopBar.<anonymous> (MediaViewerTopBar.kt:") }
-    }.single().declaredClassName
-    findMethod { matcher { declaredClass = owner; name = "<init>"; paramCount = 11 } }.single()
-        .also { check(it.paramTypeNames[2] == "kotlin.jvm.functions.Function0" && it.paramTypeNames[9] == "boolean") }
+// The media viewer top bar composable. 456 stripped its trace string and merged its lambdas, so the parameter shape is
+// the anchor: (composer, modifier, 4 x Function0, 2 x Function1, Function3, 3 x int, 5 x boolean). It is unique in 456.
+// The patch reads two parameters: [3] opens the viewer menu, [13] says whether the menu button is drawn.
+val mediaViewerTopBarFingerprint = findMethodDirect {
+    val function0 = "kotlin.jvm.functions.Function0"
+    val function1 = "kotlin.jvm.functions.Function1"
+    findMethod {
+        matcher {
+            returnType = "void"
+            paramTypes(
+                null, null, function0, function0, function0, function0, function1, function1, "kotlin.jvm.functions.Function3",
+                "int", "int", "int", "boolean", "boolean", "boolean", "boolean", "boolean",
+            )
+        }
+    }.single { Modifier.isStatic(it.modifiers) }
+}
+
+// MediaCache.get(id). 456 renamed it, so find the one String to Media method that reads the backing map directly.
+val mediaCacheGetFingerprint = findMethodDirect {
+    findMethod {
+        matcher {
+            declaredClass = "com.instagram.feed.media.MediaCache"
+            returnType = MEDIA
+            paramTypes("java.lang.String")
+            addInvoke("Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;")
+        }
+    }.single()
 }

@@ -93,29 +93,32 @@ val SaveVideos = patch(
         row.invoke(null, composer, modifier, style, icon, label)
     }
 
-    val mediaCache = classLoader.loadClass("com.instagram.feed.media.MediaCache")
-    val cacheGet = mediaCache.getMethod("get", String::class.java)
-    val stateClass = classLoader.loadClass("androidx.compose.runtime.MutableState")
     runCatching {
-        ::mediaViewerTopBarInitFingerprint.hookMethod {
+        val mediaCache = classLoader.loadClass("com.instagram.feed.media.MediaCache")
+        val cacheGet = ::mediaCacheGetFingerprint.method.apply { isAccessible = true }
+        val stateClass = classLoader.loadClass("androidx.compose.runtime.MutableState")
+        val stateValue = stateClass.getMethod("getValue")
+        ::mediaViewerTopBarFingerprint.hookMethod {
             before { param ->
-                if (param.args[9] == true) return@before
-                val open = param.args[2] ?: return@before
+                // Top bar parameters: [3] opens the viewer menu, [13] is whether the menu button is drawn.
+                if (param.args[13] != false) return@before
+                val open = param.args[3] ?: return@before
                 runCatching {
-                    val postId = fieldOfType(open, String::class.java) as? String ?: return@runCatching
-                    val cache = open.javaClass.declaredFields.asSequence()
-                        .filter { !Modifier.isStatic(it.modifiers) && !it.type.isPrimitive }
-                        .mapNotNull { f -> f.isAccessible = true; f.get(open)?.let { fieldOfType(it, mediaCache) } }
-                        .firstOrNull() ?: return@runCatching
+                    // The open callback is a merged lambda, so its fields are all Object. Look at the values.
+                    val held = open.javaClass.declaredFields.filter { !Modifier.isStatic(it.modifiers) && !it.type.isPrimitive }
+                        .mapNotNull { f -> f.isAccessible = true; f.get(open) }
+                    val postId = held.firstNotNullOfOrNull { it as? String } ?: return@runCatching
+                    val cache = held.firstNotNullOfOrNull { fieldOfType(it, mediaCache) } ?: return@runCatching
                     val post = cacheGet.invoke(cache, postId) ?: return@runCatching
-                    val index = (fieldOfType(open, stateClass)?.let { stateClass.getMethod("getValue").invoke(it) } as? Number)?.toInt() ?: 0
+                    // Other states in there hold booleans, the page index is the one holding a number.
+                    val index = held.filter { stateClass.isInstance(it) }.firstNotNullOfOrNull { stateValue.invoke(it) as? Number }?.toInt() ?: 0
                     val pages = reader.pages(post)
                     val page = pages.getOrNull(index) ?: pages.first()
                     if (reader.videoPages(page).isEmpty()) return@runCatching
-                    val activity = fieldOfType(open, Activity::class.java) as? Activity
+                    val activity = held.firstNotNullOfOrNull { it as? Activity }
                     val number = if (pages.size > 1) pages.indexOf(page) + 1 else null
-                    param.args[9] = true
-                    param.args[2] = clickOf {
+                    param.args[13] = true
+                    param.args[3] = clickOf {
                         val ctx = activity ?: appContext
                         DownloadUi.showSheet(
                             ctx, ThreadsSaver.t(ctx, R.string.th_save_video), null,

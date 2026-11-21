@@ -19,6 +19,9 @@ val adContentDeliveredFingerprint = findMethodDirect {
     }.single()
 }
 
+// The three label composables and the spool handler below are found by Compose trace strings and a class name.
+// 456 has neither: no trace strings are left and the labels are plain obfuscated composables with nothing else to key
+// on, so they stay unmatched there. HideAdsPatch skips a miss.
 val paidPartnershipLabelFingerprint = findMethodDirect {
     findMethod {
         matcher {
@@ -46,6 +49,7 @@ val sponsoredLabelInHeaderFingerprint = findMethodDirect {
     }.single()
 }
 
+// 456 has no spool handler class left (the feed repository logs spoolEnabled=false), so this does not match there.
 val spoolAdInjectorFingerprint = findMethodDirect {
     findMethod {
         matcher {
