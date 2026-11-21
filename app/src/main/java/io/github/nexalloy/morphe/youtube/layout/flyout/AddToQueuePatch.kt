@@ -10,6 +10,7 @@ package io.github.nexalloy.morphe.youtube.layout.flyout
 import app.morphe.extension.youtube.patches.AddToQueuePatch
 import app.morphe.extension.youtube.patches.LocalQueuePatch
 import io.github.nexalloy.morphe.setExtensionIsPatchIncluded
+import io.github.nexalloy.morphe.shared.misc.settings.preference.ListPreference
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
 import io.github.nexalloy.morphe.shared.misc.settings.preference.noTitleUnsortedPreferenceCategory
 import io.github.nexalloy.morphe.youtube.layout.hide.general.ContextualMenuItemBuilderOnClickFingerprint
@@ -32,9 +33,17 @@ val addToQueuePatch = patch(
 
     PreferenceScreen.FEED.addPreferences(
         noTitleUnsortedPreferenceCategory(
-            SwitchPreference("morphe_local_queue", summary = true),
-            SwitchPreference("morphe_queue_override_flyout_menu", summary = true),
-            SwitchPreference("morphe_queue_add_flyout_menu", summary = true)
+            // TODO: Port the native playlist queue before exposing its queue type.
+            // ListPreference("morphe_queue_type"),
+            ListPreference(
+                key = "morphe_queue_type",
+                entriesKey = "morphe_queue_type_legacy_entries",
+                entryValuesKey = "morphe_queue_type_legacy_entry_values"
+            ),
+            // TODO Native playlist queue paging requires its unported queue engine.
+            // SwitchPreference("morphe_native_queue_fetch_on_scroll", summary = true),
+            // SwitchPreference("morphe_native_queue_thumbnail_button", summary = true),
+            // SwitchPreference("morphe_native_queue_thumbnail_swap_actions", summary = true)
         )
     )
 
@@ -74,9 +83,13 @@ val addToQueuePatch = patch(
         }
     }
 
-    navigationIntentHook(LocalQueuePatch::shouldCancelNavigation)
+    navigationIntentHook(LocalQueuePatch::shouldCancelNavigation, includePlayerButtons = true)
 
     playerStatusOverrideHook(LocalQueuePatch::shouldCancelEndOfVideo)
+
+    LocalQueueOnUserLeaveHintFingerprint.hookMethod {
+        before { LocalQueuePatch.onUserLeaveHint() }
+    }
 
     setExtensionIsPatchIncluded(AddToQueuePatch::class.java)
 }

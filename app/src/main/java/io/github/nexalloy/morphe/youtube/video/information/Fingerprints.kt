@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.youtube.video.information
 
+import io.github.nexalloy.AllowAbstract
 import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
@@ -58,31 +59,35 @@ private fun getChannelIdFingerprint(playerResponseType: String) = Fingerprint(
     )
 )
 
+@get:AllowAbstract
 internal val playerResponseIsLiveMethod = findMethodDirect {
     val playerResponseType = channelInformationMethods().first().paramTypes.first().descriptor
     getChannelIdFingerprint(playerResponseType).instructionMatches[0].instruction.methodRef!!
 }
 
+@get:AllowAbstract
 internal val playerResponseChannelIdMethod = findMethodDirect {
     val playerResponseType = channelInformationMethods().first().paramTypes.first().descriptor
     getChannelIdFingerprint(playerResponseType).instructionMatches[1].instruction.methodRef!!
 }
 
+@get:AllowAbstract
 internal val playerResponseChannelNameMethod = findMethodDirect {
     val playerResponseType = channelInformationMethods().first().paramTypes.first().descriptor
     Fingerprint(
         filters = listOf(
-            string("setMetadata may only be called once"),
+            string("Person"),
             methodCall(
                 definingClass = playerResponseType,
                 returnType = "Ljava/lang/String;",
-                location = MatchAfterWithin(30)
+                location = MatchAfterWithin(5)
             )
         )
     ).instructionMatches.last().instruction.methodRef!!
 }
 
 @get:RequireAppVersion("21.29.000")
+@get:AllowAbstract
 internal val playerResponseVideoTitleMethod = findMethodDirect {
     val playerResponseType = channelInformationMethods().first().paramTypes.first().descriptor
     Fingerprint(
@@ -212,7 +217,6 @@ internal object VideoLengthFingerprint : Fingerprint(
     )
 )
 
-
 val videoLengthField = findFieldDirect {
     VideoLengthFingerprint().usingFields.single { it.usingType == FieldUsingType.Write && it.field.typeName == "long" }.field
 }
@@ -236,7 +240,6 @@ object MdxSeekFingerprint : Fingerprint(
         opCodesMatcher!!.matchType = OpCodeMatchType.Equals
     }
 )
-
 
 val mdxSeekSourceType = findClassDirect {
     MdxSeekFingerprint().paramTypes[1]
@@ -370,4 +373,49 @@ val setQualityMenuIndexMethod = findMethodDirect {
     setQualityFieldReference().type.findMethod {
         matcher { addParamType { descriptor = VideoQualityClass().descriptor } }
     }.single()
+}
+
+/**
+ * Makes a playback the current one, such as a preloaded Short when it's scrolled to,
+ * which is not loaded again with loadVideo().
+ */
+internal fun currentPlaybackFingerprint(playerResponseType: String) = Fingerprint(
+    classFingerprint = PlayerInitFingerprint,
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf("L"),
+    filters = listOf(
+        fieldAccess(
+            opcode = Opcode.IPUT_OBJECT,
+            definingClass = "this"
+        ),
+        // The player response of the playback.
+        methodCall(
+            returnType = playerResponseType,
+            parameters = listOf()
+        ),
+        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
+        opcode(Opcode.IF_EQZ, location = MatchAfterImmediately()),
+        methodCall(
+            opcode = Opcode.INVOKE_STATIC,
+            parameters = listOf(playerResponseType, "L"),
+            location = MatchAfterImmediately()
+        )
+    )
+)
+
+internal val currentPlaybackApplyResponseMethod = findMethodDirect {
+    val type = channelInformationMethods().first().paramTypes.first().descriptor
+    currentPlaybackFingerprint(type).instructionMatches.last().instruction.methodRef!!
+}
+
+internal val currentPlaybackMethod = findMethodDirect {
+    val type = channelInformationMethods().first().paramTypes.first().descriptor
+    currentPlaybackFingerprint(type)()
+}
+
+internal val videoQualityFormatIdsField = findFieldDirect {
+    val constructor = VideoQualityChangedFingerprint
+        .instructionMatches.last().instruction.methodRef!!
+    constructor.declaredClass!!.fields.single { it.type == constructor.paramTypes.last() }
 }

@@ -2,11 +2,14 @@
 
 package io.github.nexalloy.morphe.youtube.layout.hide.general
 
+import android.view.Menu
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import app.morphe.extension.shared.ResourceUtils.getDimenIdentifier
 import app.morphe.extension.shared.ResourceUtils.getIdIdentifier
 import app.morphe.extension.shared.ResourceUtils.getLayoutIdentifier
+import app.morphe.extension.shared.patches.components.LithoFilterPatch
 import app.morphe.extension.shared.settings.preference.BulletPointPreference
 import app.morphe.extension.youtube.patches.components.CommentsFilter
 import app.morphe.extension.youtube.patches.components.CustomFilter
@@ -18,6 +21,9 @@ import app.morphe.extension.youtube.patches.spans.SanitizeVideoSubtitleFilter
 import app.morphe.extension.youtube.patches.spans.SearchLinksFilter
 import app.morphe.extension.youtube.settings.preference.HTMLPreference
 import app.morphe.extension.youtube.settings.preference.KeywordContentStatsPreferenceCategory
+import com.google.protobuf.CodedInputStream
+import io.github.nexalloy.hookMethod
+import io.github.nexalloy.morphe.shared.misc.litho.context.ConversionContext
 import io.github.nexalloy.morphe.shared.misc.litho.filter.addLithoFilter
 import io.github.nexalloy.morphe.shared.misc.litho.filter.emptyComponentClass
 import io.github.nexalloy.morphe.shared.misc.litho.node.hookTreeNodeResult
@@ -42,17 +48,20 @@ import io.github.nexalloy.morphe.youtube.misc.engagement.EngagementPanelHook
 import io.github.nexalloy.morphe.youtube.misc.litho.filter.LithoFilter
 import io.github.nexalloy.morphe.youtube.misc.litho.node.TreeNodeElementHook
 import io.github.nexalloy.morphe.youtube.misc.navigation.NavigationBarHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.addBrowseIdHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.addSearchResultsHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.browseIdHookPatch
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_26_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_31_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_11_or_greater
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_26_or_greater
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_25_or_greater
 import io.github.nexalloy.morphe.youtube.misc.proto.elementProtoParserHookPatch
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.morphe.youtube.video.speed.custom.TapAndHoldSpeedFingerprint
 import io.github.nexalloy.new
 import io.github.nexalloy.patch
 import io.github.nexalloy.scopedHook
+import java.util.function.Function
 import org.luckypray.dexkit.wrap.DexMethod
 
 val HideLayoutComponents = patch(
@@ -60,6 +69,7 @@ val HideLayoutComponents = patch(
     description = "Adds options to hide general layout components.",
 ) {
     dependsOn(
+        browseIdHookPatch,
         aiSListPatch,
         LithoFilter,
         EngagementPanelHook,
@@ -127,6 +137,8 @@ val HideLayoutComponents = patch(
                 SwitchPreference("morphe_hide_comments_dislike_button"),
                 SwitchPreference("morphe_hide_comments_emoji_button"),
                 SwitchPreference("morphe_hide_comments_filter_bar_options", summary = true),
+                SwitchPreference("morphe_hide_comments_gif_button"),
+                SwitchPreference("morphe_hide_comments_gifs_and_images", summary = true),
                 SwitchPreference("morphe_hide_comments_gift_animation_and_cards"),
                 SwitchPreference("morphe_hide_comments_gift_button"),
                 SwitchPreference("morphe_hide_comments_info_button"),
@@ -156,7 +168,6 @@ val HideLayoutComponents = patch(
         SwitchPreference("morphe_hide_live_chat_replay_button", summary = true),
         SwitchPreference("morphe_hide_medical_panels"),
         SwitchPreference("morphe_hide_player_gesture_hints", summary = true),
-//        SwitchPreference("morphe_hide_snackbar"),
         SwitchPreference("morphe_hide_subscribers_community_guidelines"),
         SwitchPreference("morphe_hide_sync_button"),
         SwitchPreference("morphe_hide_tap_and_hold_gradient", summary = true),
@@ -269,16 +280,20 @@ val HideLayoutComponents = patch(
         SwitchPreference("morphe_hide_artist_cards", summary = true),
         SwitchPreference("morphe_hide_channel_buttons", summary = true),
         SwitchPreference("morphe_hide_community_posts"),
+            PreferenceScreenPreference(
+                key = "morphe_post_buttons_screen",
+                sorting = Sorting.UNSORTED,
+                preferences = setOf(
+                    ListPreference("morphe_post_buttons_layout"),
+                    SwitchPreference("morphe_hide_post_like_dislike_buttons"),
+                    SwitchPreference("morphe_hide_post_dislike_button", summary = true),
+                    SwitchPreference("morphe_hide_post_comment_button"),
+                    SwitchPreference("morphe_hide_post_comments_preview", summary = true),
+                    SwitchPreference("morphe_hide_post_share_button", summary = true)
+                )
+            ),
         SwitchPreference("morphe_hide_compact_banner", summary = true),
-        if (is_20_26_or_greater) {
-            ListPreference("morphe_hide_expandable_card")
-        } else {
-            ListPreference(
-                key = "morphe_hide_expandable_card",
-                entriesKey = "morphe_hide_expandable_card_legacy_entries",
-                entryValuesKey = "morphe_hide_expandable_card_legacy_entry_values"
-            )
-        },
+        ListPreference("morphe_hide_expandable_card"),
         noTitleUnsortedPreferenceCategory(
             SwitchPreference("morphe_hide_feed_flyout_menu"),
             TextPreference(
@@ -291,7 +306,8 @@ val HideLayoutComponents = patch(
 //            TextPreference(
 //                "morphe_hide_account_menu_filter_strings",
 //                inputType = InputType.TEXT_MULTI_LINE
-//            )
+//            ),
+//            SwitchPreference("morphe_hide_account_menu_downloads") // TODO: Account menu filtering.
 //        ),
 //        SwitchPreference("morphe_hide_floating_microphone_button", summary = true),
         SwitchPreference("morphe_hide_get_premium_button"),
@@ -314,6 +330,7 @@ val HideLayoutComponents = patch(
         SwitchPreference("morphe_hide_subscribed_channels_bar_names", summary = true),
         SwitchPreference("morphe_hide_surveys", summary = true),
         SwitchPreference("morphe_hide_ticket_shelf"),
+        SwitchPreference("morphe_hide_unavailable_videos_hidden_banner", summary = true),
 //        SwitchPreference(
 //            "morphe_hide_upload_time",
 //            summary = true,
@@ -349,6 +366,23 @@ val HideLayoutComponents = patch(
         ),
     )
 
+    addBrowseIdHook(LayoutComponentsFilter::setBrowseId)
+    addSearchResultsHook(LayoutComponentsFilter::clearBrowseId)
+    // region hide guidelines sheet shown before commenting
+
+    val mutationBytes = ::entityMutationBytesMethod.method
+    EntityMutationPayloadFingerprint.hookMethod {
+        after {
+            val payload = it.result as? ByteArray ?: return@after
+            val bytes = mutationBytes.invoke(it.args[0]) as ByteArray
+            val entityType = CodedInputStream.newInstance(bytes).readTag() ushr 3
+            it.result = CommentsFilter.hideGuidelinesSheet(entityType, payload)
+        }
+    }
+
+    // endregion
+
+    hookElement(LayoutComponentsFilter::setPostButtons)
     addLithoFilter(LayoutComponentsFilter())
     addLithoFilter(DescriptionComponentsFilter())
     if (is_20_31_or_greater) {
@@ -368,6 +402,9 @@ val HideLayoutComponents = patch(
         after {
             val bytes = it.args[2] as ByteArray
             if (LayoutComponentsFilter.filterMixPlaylists(bytes)) {
+                LithoFilterPatch.removeFilteredElementListItem(
+                    ConversionContext(it.args[1])
+                )
                 it.result = emptyComponent
             }
         }
@@ -446,9 +483,30 @@ val HideLayoutComponents = patch(
     // The flag is read by different layouts, and each must use the same value,
     // otherwise other panels such as the comments show the bottom padding twice.
     // Flag was removed in 21.26+.
-    if (is_21_11_or_greater && !is_21_26_or_greater) {
+    if (is_21_11_or_greater && !is_21_25_or_greater) {
         insertLiteralOverride(45744676, false)
     }
+
+    // endregion
+
+    // region collapse filtered boxes of the fullscreen engagement panel
+
+    // The box keeps its rounded border and padding when the element in it is filtered.
+    val measure = MetadataHighlightsColumnMeasureFingerprint.method
+    val superMeasure = measure.declaringClass.superclass.getDeclaredMethod(
+        "onMeasure", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
+    )
+    val setMeasuredDimension = View::class.java.getDeclaredMethod(
+        "setMeasuredDimension", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
+    ).apply { isAccessible = true }
+    measure.hookMethod(scopedHook(superMeasure) {
+        after {
+            if (it.thisObject === outerParam.thisObject && !it.hasThrowable() &&
+                LayoutComponentsFilter.isEngagementPanelBoxEmpty(it.thisObject as ViewGroup)) {
+                setMeasuredDimension.invoke(it.thisObject, 0, 0)
+            }
+        }
+    })
 
     // endregion
 
@@ -467,7 +525,6 @@ val HideLayoutComponents = patch(
     // dimen.bar_container_height
 
     // id.related_chip_cloud
-
 
     // fix: related video overlay is broken due to patch.
     insertLiteralOverride(45614162L, LayoutComponentsFilter::hideInRelatedVideos)
@@ -504,12 +561,35 @@ val HideLayoutComponents = patch(
         }
     })
 
+    // The list popup menu ignores the zero height of a hidden item and only keeps its text hidden,
+    // so the filtered items are left out of the items of the popup menus instead.
+    val menuTitle = ::contextualMenuItemTextFingerprint.method
+    LayoutComponentsFilter.flyoutMenuItemAdapter = Function { item ->
+        if (menuTitle.parameterTypes.single().isInstance(item)) {
+            LayoutComponentsFilter.FlyoutMenuItem { menuTitle.invoke(null, item) as? CharSequence }
+        } else null
+    }
+    MenuItemListBuilderFingerprint.hookMethod(scopedHook(::menuItemsCollectorMethod.method) {
+        before {
+            it.args[0] = LayoutComponentsFilter.hideFlyoutMenuItems(it.args[0] as Iterable<*>)
+        }
+    })
+
+    ::actionBarMenuAddMethods.dexMethodList.forEach { addMethod ->
+        ActionBarMenuBuilderFingerprint.hookMethod(scopedHook(addMethod.toMethod()) {
+            after {
+                if (innerDepth == 0 && !it.hasThrowable()) {
+                    LayoutComponentsFilter.hideFlyoutMenu(it.thisObject as Menu, it.args[1] as Int, it.args[3] as? CharSequence)
+                }
+            }
+        })
+    }
+
     // endregion
 
     // TODO hide channel tab
 
     // TODO hide search term thumbnails
-
 
     // region hide live chat tooltips
 

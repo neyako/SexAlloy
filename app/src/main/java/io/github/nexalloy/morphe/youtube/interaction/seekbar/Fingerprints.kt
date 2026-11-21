@@ -10,6 +10,7 @@
 
 package io.github.nexalloy.morphe.youtube.interaction.seekbar
 
+import io.github.nexalloy.AllowAbstract
 import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
@@ -408,6 +409,7 @@ val slideToSeekCheckCallers = findMethodListDirect {
     }.also { require(it.isNotEmpty()) }
 }
 
+@get:AllowAbstract
 val updateSeekbarPointMethod = findMethodDirect {
     SeekbarUpdatePointFingerprint.instructionMatches[1].instruction.methodRef!!
 }
@@ -422,4 +424,114 @@ val slideSeekbarModelField = findFieldDirect {
 
 val slideSeekbarViewField = findFieldDirect {
     SlideSeekbarGetViewControllerFingerprint.instructionMatches[3].instruction.fieldRef!!
+}
+
+internal object SlideSeekbarHandlerConstructorFingerprint : Fingerprint (
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.CONSTRUCTOR),
+    filters = listOf(
+        resourceLiteral(ResourceType.DIMEN, "seek_easy_horizontal_touch_offset_to_start_scrubbing")
+    )
+)
+
+internal object StoryboardFrameRegionFingerprint : Fingerprint (
+    returnType = "Landroid/graphics/Bitmap;",
+    parameters = listOf("L", "I", "Landroid/graphics/Bitmap;"),
+    filters = listOf(
+        methodCall(
+            opcode = Opcode.INVOKE_VIRTUAL,
+            parameters = listOf("I"),
+            returnType = "Landroid/graphics/Rect;"
+        ),
+        opcode(opcode = Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
+        methodCall(
+            smali = $$"Landroid/graphics/BitmapRegionDecoder;->decodeRegion(Landroid/graphics/Rect;Landroid/graphics/BitmapFactory$Options;)Landroid/graphics/Bitmap;"
+        ),
+        string("Storyboard regionDecoder.decodeRegion exception - ")
+    )
+)
+
+internal object SeekbarBigBoardsScaleTypeFingerprint : Fingerprint (
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf("Z"),
+    filters = listOf(
+        fieldAccess(
+            opcode = Opcode.SGET_OBJECT,
+            smali = $$"Landroid/widget/ImageView$ScaleType;->CENTER_CROP:Landroid/widget/ImageView$ScaleType;"
+        ),
+        fieldAccess(
+            opcode = Opcode.SGET_OBJECT,
+            smali = $$"Landroid/widget/ImageView$ScaleType;->FIT_CENTER:Landroid/widget/ImageView$ScaleType;"
+        )
+    )
+)
+
+internal object SeekbarBigBoardsScrubFingerprint : Fingerprint (
+    classFingerprint = SeekbarBigBoardsScaleTypeFingerprint,
+    returnType = "V",
+    parameters = listOf("I", "J"),
+    filters = listOf(
+        methodCall(
+            opcode = Opcode.INVOKE_DIRECT,
+            definingClass = "this",
+            parameters = listOf("J"),
+            returnType = "V"
+        )
+    )
+)
+
+val storyboardFrameRectMethod = findMethodDirect {
+    StoryboardFrameRegionFingerprint.instructionMatches.first().instruction.methodRef!!
+}
+
+val bigBoardImageField = findFieldDirect {
+    SeekbarBigBoardsScrubFingerprint().declaredClass!!.fields.single {
+        it.type.descriptor == "Landroid/widget/ImageView;"
+    }
+}
+
+val bigBoardVisibilityMethod = findMethodDirect {
+    SeekbarBigBoardsScrubFingerprint().invokes.filter {
+        it.paramTypes.map { type -> type.descriptor } == listOf("Landroid/view/View;", "Z") &&
+                it.returnType!!.descriptor == "V"
+    }.distinct().single()
+}
+
+internal object TimeBarCompleteHiddenScrubFingerprint : Fingerprint(
+    classFingerprint = TapToSeekFingerprint,
+    name = "onTouchEvent",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "Z",
+    parameters = listOf("Landroid/view/MotionEvent;"),
+    filters = listOf(
+        methodCall(
+            opcode = Opcode.INVOKE_VIRTUAL,
+            parameters = listOf(),
+            returnType = "Z"
+        ),
+        opcode(Opcode.MOVE_RESULT, location = MatchAfterImmediately()),
+        opcode(Opcode.IF_EQZ, location = MatchAfterImmediately()),
+        methodCall(
+            opcode = Opcode.INVOKE_VIRTUAL,
+            parameters = listOf(),
+            returnType = "V",
+            location = MatchAfterImmediately()
+        ),
+        methodCall(
+            opcode = Opcode.INVOKE_VIRTUAL,
+            parameters = listOf(),
+            returnType = "Z",
+            location = MatchAfterImmediately()
+        ),
+        opcode(Opcode.MOVE_RESULT, location = MatchAfterImmediately()),
+        opcode(Opcode.IF_EQZ, location = MatchAfterImmediately()),
+        opcode(Opcode.INT_TO_FLOAT, location = MatchAfterImmediately())
+    )
+)
+
+val timeBarIsScrubbingMethod = findMethodDirect {
+    TimeBarCompleteHiddenScrubFingerprint.instructionMatches[0].instruction.methodRef!!
+}
+val timeBarCompleteScrubMethod = findMethodDirect {
+    TimeBarCompleteHiddenScrubFingerprint.instructionMatches[3].instruction.methodRef!!
 }

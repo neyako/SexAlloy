@@ -13,6 +13,7 @@ import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import io.github.libxposed.api.XposedInterface.PRIORITY_DEFAULT
 import java.io.File
+import java.lang.Enum.valueOf as javaEnumValueOf
 import java.lang.ref.WeakReference
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Member
@@ -169,8 +170,8 @@ private val resourceLoader by lazy @RequiresApi(Build.VERSION_CODES.R) {
 }
 
 fun Context.addModuleAssets() {
-    val modulePath = File(modulePath)
-    if (!modulePath.exists()) {
+    val moduleFile = File(modulePath)
+    if (!moduleFile.exists()) {
         Utils.showToastLong("NexAlloy has been updated")
         Utils.restartApp(this)
     }
@@ -180,7 +181,7 @@ fun Context.addModuleAssets() {
         return
     }
 
-    resources.assets.callMethod("addAssetPath", modulePath)
+    resources.assets.callMethod("addAssetPath", moduleFile.path)
 }
 
 // Module layouts (e.g. morphe_sb_inline_sponsor_overlay.xml) reference module classes
@@ -255,7 +256,7 @@ fun injectHostClassLoaderToSelf(self: ClassLoader, host: ClassLoader) {
 @Suppress("UNCHECKED_CAST")
 fun Class<*>.enumValueOf(name: String): Enum<*>? {
     return try {
-        java.lang.Enum.valueOf(this as Class<out Enum<*>>, name)
+        javaEnumValueOf(this as Class<out Enum<*>>, name)
     } catch (_: IllegalArgumentException) {
         null
     }

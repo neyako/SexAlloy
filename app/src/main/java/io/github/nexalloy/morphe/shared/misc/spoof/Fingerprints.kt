@@ -3,8 +3,10 @@ package io.github.nexalloy.morphe.shared.misc.spoof
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
+import io.github.nexalloy.morphe.InstructionLocation.MatchAfterWithin
 import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.fieldAccess
+import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.methodCall
@@ -75,7 +77,7 @@ internal val cronetHttpMethodField = findFieldDirect {
 }
 
 internal object CronetDataSourceReadFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    // NexAlloy: Match both final and non-final Cronet read implementations.
     returnType = "I",
     parameters = listOf("[B", "I", "I"),
     filters = listOf(
@@ -106,7 +108,6 @@ internal object CronetDataSourceReadFingerprint : Fingerprint(
 
 internal object CronetDataSourceReadBufferFingerprint : Fingerprint(
     classFingerprint = CronetDataSourceReadFingerprint,
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "I",
     parameters = listOf("Ljava/nio/ByteBuffer;"),
     filters = listOf(
@@ -147,4 +148,42 @@ internal object PriorityTooLowExceptionFingerprint : Fingerprint(
 
 val cronetRemainingBytesField = findFieldDirect {
     CronetDataSourceReadFingerprint.instructionMatches.last().instruction.fieldRef!!
+}
+
+internal object InvalidResponseCodeExceptionFingerprint : Fingerprint(
+    name = "<init>",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.CONSTRUCTOR),
+    returnType = "V",
+    parameters = listOf("I", "Ljava/io/IOException;", "Ljava/util/Map;", "L"),
+    filters = listOf(
+        string("Response code: ")
+    )
+)
+
+val cronetReadResponseMethod = findMethodDirect {
+    CronetDataSourceReadFingerprint.instructionMatches[1].instruction.methodRef!!
+}
+
+val cronetDataSpecField = findFieldDirect {
+    val dataSpecType = cronetReadResponseMethod().paramTypes[1].descriptor
+    CronetDataSourceReadFingerprint().declaredClass!!.fields.single {
+        it.type.descriptor == dataSpecType
+    }
+}
+
+val priorityTaskProceedMethod = findMethodDirect {
+    Fingerprint(
+        returnType = "V", parameters = listOf("I"),
+        filters = listOf(methodCall(reference = PriorityTooLowExceptionFingerprint()))
+    )()
+}
+val priorityDataSourceOpenMethod = findMethodDirect {
+    Fingerprint(
+        returnType = "J", parameters = listOf("L"),
+        filters = listOf(
+            methodCall(reference = priorityTaskProceedMethod()),
+            methodCall(opcode = Opcode.INVOKE_INTERFACE, returnType = "J",
+                location = MatchAfterWithin(3))
+        )
+    )()
 }
