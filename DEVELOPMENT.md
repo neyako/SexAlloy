@@ -223,3 +223,13 @@ This project shares extension code with the upstream project, located at `./reva
 Refer to [FingerprintsKtTest.kt](app/src/test/java/io/github/nexalloy/morphe/FingerprintsKtTest.kt) for testing examples.
 
 For running tests, place necessary APKs into the `./app/binaries/` directory. APK filenames should be prefixed with their respective package names (e.g., `com.example.app-1.0.0.apk`).
+
+## Builds and Releases
+
+[.github/workflows/android.yml](.github/workflows/android.yml) runs on every push to `main`:
+
+-   It builds the APK and publishes it as the `autobuild` prerelease (the dev build). The in-app nightly update check reads that release and expects exactly one `NexAlloy-<commit>.apk` on it.
+-   Every fourth change since the last stable release (`RELEASE_EVERY`, counted on `main`'s first-parent history, so a merged branch is one change) it also publishes the same APK as a stable release tagged `2.0.N`. The first run publishes one right away. To release sooner, run the workflow by hand with "Publish a stable release now".
+-   `N` is the version code. The workflow sets it to the larger of `versionCode` in `app/build.gradle.kts` and the last release's code plus one, so dev builds always install over the last release.
+
+The workflow signs with four repository secrets and fails early without them: `KEYSTORE` (the keystore file, base64), `KEYSTORE_PASSWORD`, `KEYSTORE_ALIAS` and `KEYSTORE_ALIAS_PASSWORD`. Local release builds read the same values from an untracked `signing.properties` in the repository root.
