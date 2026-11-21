@@ -11,7 +11,7 @@ val HideAds = patch(
     description = "Removes the sponsored rows Gmail renders between conversations.",
 ) {
     val constructors = ::adViewConstructors.dexMethodList
-    check(constructors.isNotEmpty()) { "No ad view constructor found in $AD_PACKAGE" }
+    check(constructors.isNotEmpty()) { "No ad view constructor found in $AD_PACKAGES" }
 
     val hooked = constructors.mapNotNull { dexMethod ->
         val constructor = dexMethod.toConstructor()
@@ -26,7 +26,7 @@ val HideAds = patch(
         constructor.declaringClass.simpleName
     }
 
-    check(hooked.isNotEmpty()) { "No ad view among ${constructors.size} classes in $AD_PACKAGE" }
+    check(hooked.isNotEmpty()) { "No ad view among ${constructors.size} classes in $AD_PACKAGES" }
     Logger.printInfo { "Gmail ad views hooked: ${hooked.joinToString()}" }
 }
 
