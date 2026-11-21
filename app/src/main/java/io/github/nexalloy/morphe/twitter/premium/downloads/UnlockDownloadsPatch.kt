@@ -30,7 +30,6 @@ val UnlockDownloads = patch(
 
     ::hasAnyPremiumFingerprint.hookMethod(returnConstant(true))
     ::offlinePremiumFingerprint.hookMethod(returnConstant(true))
-    ::offlineVideoEnabledFingerprint.hookMethod(returnConstant(true))
 
     listOf(
         ::videoDownloadableField to ::videoDownloadableAccessors,

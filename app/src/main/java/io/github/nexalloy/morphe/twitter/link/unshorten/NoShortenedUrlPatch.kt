@@ -25,13 +25,12 @@ val NoShortenedUrl = patch(
         check(hooked > 0) { "No UrlEntity constructor with exactly 3 String parameters" }
     }
 
-    for (fingerprint in listOf(
-        OpenExternalUrlFingerprint,
-        OpenExternalBrowserFingerprint,
-        OpenUrlInAppFingerprint,
+    for (method in listOf(
+        OpenExternalUrlFingerprint.method,
+        ::openExternalBrowserFingerprint.method,
+        OpenUrlInAppFingerprint.method,
     )) {
         run {
-            val method = fingerprint.method
             val urlIndex = method.parameterTypes.indexOfFirst { it == String::class.java }
             check(urlIndex >= 0) { "${method.name} has no String parameter" }
 

@@ -25,7 +25,6 @@ private const val VIDEO_TAB_DOWNLOAD_STRING = "subscriptions_watermarked_video_d
 private const val PREMIUM_BASIC = "feature/premium_basic"
 private const val PREMIUM_PLUS = "feature/premium_plus"
 private const val BLUE_VERIFIED = "feature/twitter_blue_verified"
-private const val OFFLINE_VIDEO_FEATURE = "subscriptions_feature_offline_video"
 
 private const val DOWNLOADABLE_LABEL = ", isDownloadable="
 
@@ -121,14 +120,11 @@ internal val hasAnyPremiumFingerprint = findMethodDirect {
     subscriptionGate("NewX premium subscription checker", PREMIUM_BASIC, PREMIUM_PLUS, BLUE_VERIFIED) { true }
 }
 
+// 12.45 removed the subscriptions_feature_offline_video gate; offline saving is allowed whenever this passes.
 internal val offlinePremiumFingerprint = findMethodDirect {
     subscriptionGate("NewX offline-video premium checker", BLUE_VERIFIED, PREMIUM_PLUS) { method ->
         method.paramCount == 0 && PREMIUM_BASIC !in method.usingStrings.map { it.toString() }
     }
-}
-
-internal val offlineVideoEnabledFingerprint = findMethodDirect {
-    subscriptionGate("NewX offline-video feature gate", OFFLINE_VIDEO_FEATURE) { it.paramCount == 0 }
 }
 
 private fun DexKitBridge.mediaToString(modelName: String): MethodData {
