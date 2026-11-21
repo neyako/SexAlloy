@@ -20,12 +20,6 @@ val HideShortVideoAds = patch(
 
     for ((label, className) in targets.distinctBy { it.second }) {
         val cls = classLoader.loadClass(className)
-
-        if (cls.isInterface) {
-            Logger.printDebug { "[Zalo] $label -> $className (interface, skipped)" }
-            continue
-        }
-
         val constructors = cls.declaredConstructors
         check(constructors.isNotEmpty()) { "$label -> $className: no declared constructor" }
 

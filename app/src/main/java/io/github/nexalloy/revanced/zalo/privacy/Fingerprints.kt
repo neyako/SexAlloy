@@ -9,8 +9,10 @@ private const val SHOW_ONLINE_SETTING = "PRIVACY_SETTINGS_SHOW_ONLINE_STATUS_"
 private const val ONLINE_FRIENDS_SETTING = "SETTING_SHOW_ONLINE_FRIEND_WITH_STATUS"
 private const val MAIN_TAB_VIEW = "com.zing.zalo.ui.maintab.MainTabView"
 
+// 26.11 strips Kotlin null-check strings such as the "ackMsgList" parameter name.
 val seenAckSocketFingerprint = fingerprint {
-    strings("ackMsgList", "seen", "data")
+    methodMatcher { usingEqStrings("seen", "data") }
+    parameters("Ljava/util/List;", "Z", "I", "I", "L")
     returns("V")
 }
 
@@ -20,7 +22,7 @@ val seenAckRepositoryFingerprint = fingerprint {
 }
 
 val typingSocketFingerprint = fingerprint {
-    classMatcher { usingStrings("ackMsgList", "seen", "data") }
+    classFingerprint(seenAckSocketFingerprint)
     parameters("Ljava/lang/String;", "I", "Z", "Z")
     returns("V")
 }

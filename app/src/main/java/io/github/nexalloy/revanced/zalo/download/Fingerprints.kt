@@ -3,11 +3,17 @@ package io.github.nexalloy.revanced.zalo.download
 import io.github.nexalloy.morphe.findMethodDirect
 import java.lang.reflect.Modifier
 
-private const val STORY_MENU_DATA = "dataStoryViewFull"
 private const val MENU_VIEW = "com.zing.zalo.social.features.menu_feed.BottomSheetMenuView"
 
+// Story-only action keys. 26.11 strips Kotlin null-check strings such as the
+// "dataStoryViewFull" parameter name that used to identify this builder.
 val storyMenuBuilderFingerprint = findMethodDirect {
-    findMethod { matcher { usingStrings(STORY_MENU_DATA); returnType = "java.util.List" } }.single()
+    findMethod {
+        matcher {
+            usingStrings("report_story_ad", "hide_zvideo_story", "report_zvideo_story")
+            returnType = "java.util.List"
+        }
+    }.single()
 }
 
 val menuItemFactoryFingerprint = findMethodDirect {

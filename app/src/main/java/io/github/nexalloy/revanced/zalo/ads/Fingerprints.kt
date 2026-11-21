@@ -8,8 +8,10 @@ import org.luckypray.dexkit.query.enums.StringMatchType
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Modifier
 
+// 26.11 strips Kotlin null-check strings such as "zinstantMediaType", so match the bind by shape.
 val feedAdsBindFingerprint = fingerprint {
-    strings("zinstantMediaType")
+    definingClass("Lcom/zing/zalo/social/presentation/timeline/components/ads/FeedItemZInstantAds;")
+    parameters("L", "I", "L", "I")
     returns("V")
 }
 
@@ -53,6 +55,7 @@ val adsNativeLayoutFingerprint = fingerprint {
     classMatcher { className(".AdsNativeLayout", StringMatchType.EndsWith) }
 }
 
+// The ad item views implement it; an interface only declares it.
 val advertisingItemFingerprints = findMethodListDirect {
     findMethod {
         matcher {
@@ -60,7 +63,7 @@ val advertisingItemFingerprints = findMethodListDirect {
             returnType = "com.zing.zalo.shortvideo.domain.entity.content.Content"
             paramCount = 0
         }
-    }
+    }.filter { !Modifier.isAbstract(it.modifiers) }
 }
 
 internal const val STORY_ADS_ENABLE_KEY = "social@story@story_ads@enable"

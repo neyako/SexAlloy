@@ -49,12 +49,16 @@ val roomEntityAdapterBaseFingerprint = findClassDirect {
         .single()
 }
 
+// insertAndReturnId (long) and insert (void). R8 drops insert when no DAO calls it,
+// as in 26.11, so only the long variant is required.
 val roomEntityInsertMethods = findMethodListDirect {
     roomEntityAdapterBaseFingerprint().methods.filter {
         it.isMethod && !Modifier.isAbstract(it.modifiers) && !Modifier.isStatic(it.modifiers) &&
             it.paramTypeNames == listOf("java.lang.Object") &&
             it.returnTypeName in setOf("long", "void")
-    }.also { check(it.size == 2) { "expected 2 Room insert methods, found ${it.size}" } }
+    }.also { found ->
+        check(found.any { it.returnTypeName == "long" }) { "Room insertAndReturnId not found in ${found.size} candidates" }
+    }
 }
 
 val roomStatementDatabaseField = findFieldDirect {
