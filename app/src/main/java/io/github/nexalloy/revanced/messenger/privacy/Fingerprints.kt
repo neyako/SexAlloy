@@ -101,7 +101,8 @@ val adEntryEventFingerprint = findMethodDirect {
         matcher {
             returnType = "void"
             paramTypes(null, FB_USER_SESSION, "java.lang.String", "java.lang.String", "java.lang.String", "java.lang.String")
-            usingEqStrings("ad_id", "page_id")
+            // "page_id" moved into a shared helper in 588, so only "ad_id" is left in the method itself.
+            usingEqStrings("ad_id")
         }
     }.single { java.lang.reflect.Modifier.isStatic(it.modifiers) }
 }
@@ -167,7 +168,8 @@ val uploadActionDispatcherFingerprint = findMethodDirect {
         matcher {
             returnType = "void"
             paramCount = 3
-            usingStrings("com.facebook.analytics2.logger.UPLOAD_NOW", "com.facebook.analytics2.logger.USER_LOGOUT", "Unknown action=")
+            // 588 reads the USER_LOGOUT action through a string table helper, so it is not matched here.
+            usingStrings("com.facebook.analytics2.logger.UPLOAD_NOW", "Unknown action=")
         }
     }.single { !java.lang.reflect.Modifier.isStatic(it.modifiers) && it.paramTypeNames[2] == "java.lang.String" }
 }
