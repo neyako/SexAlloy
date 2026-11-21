@@ -202,9 +202,7 @@ val HideFacebookAds = patch(
 
     hookGameAdActivityLaunchFallbacks()
 
-    ::profileReelsAsyncAdsQueryFingerprint.hookMethod {
-        before { param -> param.result = null }
-    }
+    ::profileReelsAsyncAdsQueryFingerprint.dexMethodList.forEach { dm -> hookBlockNull(dm.toMethod()) }
 
     hookNewsfeedSponsoredFilter(::newsfeedProcessNewStoriesRunFingerprint.method, classLoader)
 

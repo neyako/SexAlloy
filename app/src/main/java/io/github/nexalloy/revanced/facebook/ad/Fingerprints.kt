@@ -123,19 +123,13 @@ val reelsBannerRenderMethodsFingerprint = findMethodListDirect {
     (bannerRenders + asyncAdsDispatch + sponsoredSlotQueueAdds).distinctBy { it.descriptor }
 }
 
-val profileReelsAsyncAdsQueryFingerprint = findMethodDirect {
-    findMethod {
-        matcher {
-            returnType = "void"
-            paramTypes(
-                "com.facebook.auth.usersession.FbUserSession",
-                "java.lang.Integer",
-                "java.lang.Integer",
-                "boolean"
-            )
-            usingStrings("ProfileReelsAsyncAdsQuery")
-        }
-    }.first { !it.isConstructor }
+// Since 588 a small helper builds the query and two void callers run it (the regular fetch and the
+// V2 one), so the entry points are the helper's void callers.
+val profileReelsAsyncAdsQueryFingerprint = findMethodListDirect {
+    val users = findMethod { matcher { usingStrings("ProfileReelsAsyncAdsQuery") } }.filter { it.isMethod }
+    users.filter { it.returnTypeName == "void" }
+        .ifEmpty { users.flatMap { it.callers }.filter { it.isMethod && it.returnTypeName == "void" } }
+        .distinctBy { it.descriptor }
 }
 
 private val FEED_CSR_FILTER_TAGS = listOf(
@@ -250,21 +244,23 @@ val sponsoredPoolAddMethodFingerprint = findMethodDirect {
     }.single()
 }
 
+// The next-story method took no arguments before 588, it takes (viewable edges, filter) now.
 val sponsoredStoryManagerClassFingerprint = findClassDirect {
     val candidates = findClass {
         matcher { usingEqStrings("FeedSponsoredStoryHolder.onPositionReset", "freshFeedStoryHolder") }
     }
     candidates.firstOrNull { cls ->
         cls.findMethod {
-            matcher { returnType = "com.facebook.graphql.model.GraphQLFeedUnitEdge"; paramCount = 0 }
+            matcher { returnType = "com.facebook.graphql.model.GraphQLFeedUnitEdge" }
         }.isNotEmpty()
     } ?: error("Unable to resolve the Facebook sponsored story manager class")
 }
 
 val sponsoredStoryNextMethodFingerprint = findMethodDirect {
-    sponsoredStoryManagerClassFingerprint().findMethod {
-        matcher { returnType = "com.facebook.graphql.model.GraphQLFeedUnitEdge"; paramCount = 0 }
-    }.single()
+    val next = sponsoredStoryManagerClassFingerprint().findMethod {
+        matcher { returnType = "com.facebook.graphql.model.GraphQLFeedUnitEdge" }
+    }
+    next.filter { it.paramTypeNames.isEmpty() }.ifEmpty { next }.single()
 }
 
 private val STORY_AD_STORE_TAGS = listOf(

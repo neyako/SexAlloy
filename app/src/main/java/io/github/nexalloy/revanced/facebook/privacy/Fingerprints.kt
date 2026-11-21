@@ -1,20 +1,17 @@
 package io.github.nexalloy.revanced.facebook.privacy
 
 import io.github.nexalloy.morphe.findMethodListDirect
+import io.github.nexalloy.revanced.facebook.isStringPool
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Modifier
 
-private fun MethodData.isStringTable(): Boolean =
-    Modifier.isStatic(modifiers) && returnTypeName == "java.lang.String" &&
-        paramTypeNames == listOf("int")
-
 private fun MethodData.isHookable(): Boolean =
-    isMethod && !Modifier.isAbstract(modifiers) && !isStringTable()
+    isMethod && !Modifier.isAbstract(modifiers) && !isStringPool()
 
 val storySeenMutationSenderFingerprint = findMethodListDirect {
     val builders = findMethod {
         matcher { usingEqStrings("story_ids_list", "is_story_peek_view", "surface=story_viewer") }
-    }.filter { it.isMethod && !it.isStringTable() }
+    }.filter { it.isMethod && !it.isStringPool() }
     val classes = builders.map { it.className }.distinct()
     if (classes.size != 1) return@findMethodListDirect emptyList()
 
@@ -28,12 +25,12 @@ val storySeenMutationSenderFingerprint = findMethodListDirect {
     }.distinctBy { it.descriptor }
 }
 
+// The flush is `flush(reason)` on older builds and `static flush(helper, reason, callback)` since 588.
 val storySeenHelperFlushFingerprint = findMethodListDirect {
     findMethod {
         matcher { usingEqStrings("on_detach", "top_connections_pog", "TOP_OF_FEED_TRAY") }
     }.filter { m ->
-        m.isHookable() && !Modifier.isStatic(m.modifiers) &&
-            m.returnTypeName == "void" && m.paramTypeNames == listOf("java.lang.String")
+        m.isHookable() && m.returnTypeName == "void" && "java.lang.String" in m.paramTypeNames
     }.distinctBy { it.descriptor }
         .let { if (it.size == 1) it else emptyList() }
 }

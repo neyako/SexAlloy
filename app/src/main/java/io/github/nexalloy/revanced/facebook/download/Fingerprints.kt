@@ -1,9 +1,11 @@
 package io.github.nexalloy.revanced.facebook.download
 
+import io.github.nexalloy.AllowAbstract
 import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
+import io.github.nexalloy.revanced.facebook.findMethodUsingString
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.FieldData
 import org.luckypray.dexkit.result.MethodData
@@ -40,9 +42,10 @@ val videoPlayerParamsVideoIdFieldFingerprint = findFieldDirect {
     reportedField(VIDEO_PLAYER_PARAMS, "videoId", "videoId", "java.lang.String")
 }
 
+// DOWNLOAD_VIDEO is no longer a literal here (it moved to the string pool), the helper's own name still is.
 val videoFeedStoryMenuFingerprint = findMethodDirect {
     findMethod {
-        matcher { returnType = "void"; usingEqStrings("VideoFeedStoryMenuHelper", "DOWNLOAD_VIDEO") }
+        matcher { returnType = "void"; usingEqStrings("VideoFeedStoryMenuHelper") }
     }.single { m ->
         val p = m.paramTypeNames
         p.size >= 3 && p[0] == "android.view.Menu" && p[1] == "android.view.View" && p.last() == PLAYER_ORIGIN
@@ -132,6 +135,9 @@ private fun DexKitBridge.cdnResize(): CdnResize {
 }
 
 val cdnModifierFieldFingerprint = findFieldDirect { cdnResize().modifier }
+
+// The modifier is an interface; the patch invokes this method on the stored implementation and never hooks it.
+@get:AllowAbstract
 val cdnResizeMethodFingerprint = findMethodDirect { cdnResize().resize }
 val cdnOptionsConstructorFingerprint = findMethodDirect { cdnResize().options }
 val cdnScaleFieldFingerprint = findFieldDirect { cdnResize().scale }
@@ -141,15 +147,10 @@ private const val SAVE_STORY_ATTEMPTED = "save_story_attempted"
 
 val storySaveActionClassFingerprint = findClassDirect {
     val menu = getClassData(STORY_VIEWER_MORE_MENU) ?: error("No $STORY_VIEWER_MORE_MENU in this build")
-    val candidates = menu.typesCreated().mapNotNull { getClassData(it) }
-    val tables = findMethod {
-        matcher { usingEqStrings(SAVE_STORY_ATTEMPTED); returnType = "java.lang.String"; paramTypes("int") }
-    }.filter { Modifier.isStatic(it.modifiers) }.map { it.descriptor }.toSet()
-    fun actionsWhere(test: (MethodData) -> Boolean) = candidates.filter { cls ->
-        cls.methods.any { m -> m.isMethod && m.returnTypeName == "void" && m.paramTypeNames.size == 1 && test(m) }
+    val logging = findMethodUsingString(SAVE_STORY_ATTEMPTED).map { it.descriptor }.toSet()
+    val actions = menu.typesCreated().mapNotNull { getClassData(it) }.filter { cls ->
+        cls.methods.any { m -> m.isMethod && m.returnTypeName == "void" && m.paramTypeNames.size == 1 && m.descriptor in logging }
     }
-    val actions = actionsWhere { SAVE_STORY_ATTEMPTED in it.usingStrings }
-        .ifEmpty { actionsWhere { m -> m.invokes.any { it.descriptor in tables } } }
     actions.singleOrNull() ?: error("Expected 1 save-story action, found ${actions.size}")
 }
 
@@ -199,8 +200,21 @@ val storyMenuRowClassFingerprint = findClassDirect {
 private const val CLEAR_MODE_ROW = "fds_control_clear_mode"
 private const val OWN_DOWNLOAD_ROW = "fds_control_download_video"
 
+/**
+ * The method naming the "Clear mode" row. On older builds that is the More sheet builder itself; since
+ * 588 it is a small factory that returns the row and the builder only calls it.
+ */
+private fun DexKitBridge.clearModeRow(): MethodData {
+    val users = findMethodUsingString(CLEAR_MODE_ROW)
+    return users.singleOrNull() ?: error("Expected 1 method naming \"$CLEAR_MODE_ROW\", found ${users.size}")
+}
+
+private fun MethodData.isMoreSheetBuilder() = isMethod && Modifier.isStatic(modifiers) && returnTypeName == "void" &&
+    PLAYER_ORIGIN in paramTypeNames && "java.lang.String" in paramTypeNames && "java.util.List" in paramTypeNames
+
 val reelMoreSheetBuilderFingerprint = findMethodDirect {
-    val builders = findMethod { matcher { usingEqStrings(CLEAR_MODE_ROW); returnType = "void" } }.filter { Modifier.isStatic(it.modifiers) }
+    val row = clearModeRow()
+    val builders = if (row.isMoreSheetBuilder()) listOf(row) else row.callers.filter { it.isMoreSheetBuilder() }.distinctBy { it.descriptor }
     builders.singleOrNull() ?: error("Expected 1 builder of \"$CLEAR_MODE_ROW\", found ${builders.size}")
 }
 
@@ -215,9 +229,10 @@ val reelPlayerStateLookupFingerprint = findMethodDirect {
 }
 
 val reelRowConstructorFingerprint = findMethodDirect {
-    val stream = DexStream.of(reelMoreSheetBuilderFingerprint()) ?: error("Could not read the More sheet builder")
+    val row = clearModeRow()
+    val stream = DexStream.of(row) ?: error("Could not read ${row.descriptor}")
     val idAt = stream.indexOfString(CLEAR_MODE_ROW)
-    check(idAt >= 0) { "The More sheet builder no longer names \"$CLEAR_MODE_ROW\"" }
+    check(idAt >= 0) { "${row.descriptor} no longer names \"$CLEAR_MODE_ROW\"" }
     stream.items.drop(idAt).filterIsInstance<DexStream.Item.Call>().map { it.callee }
         .firstOrNull { it.isConstructor && "java.lang.CharSequence" in it.paramTypeNames }
         ?: error("No row is built after \"$CLEAR_MODE_ROW\"")
@@ -225,7 +240,7 @@ val reelRowConstructorFingerprint = findMethodDirect {
 
 val reelIconWrapFingerprint = findMethodDirect {
     val rowParameters = reelRowConstructorFingerprint().paramTypeNames.toSet()
-    val wraps = reelMoreSheetBuilderFingerprint().invokes.filter { call ->
+    val wraps = clearModeRow().invokes.filter { call ->
         Modifier.isStatic(call.modifiers) && call.returnTypeName in rowParameters && call.paramTypeNames.size == 1 &&
             getClassData(call.paramTypeNames.single())?.superClass?.name == "java.lang.Enum"
     }.distinctBy { it.descriptor }
