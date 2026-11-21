@@ -5,12 +5,9 @@ import io.github.nexalloy.morphe.accessFlags
 import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
+import io.github.nexalloy.revanced.instagram.isStringPool
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Modifier
-
-private fun MethodData.isStringPool(): Boolean =
-    Modifier.isStatic(modifiers) && returnTypeName == "java.lang.String" &&
-        paramTypeNames == listOf("int")
 
 val screenshotFingerprint = findMethodDirect {
     val classNames = findClass {
@@ -170,7 +167,8 @@ val ephemeralMediaJsonParserFingerprint = findMethodDirect {
 val ephemeralVanishLocalDeleteFingerprint = findMethodDirect {
     val seenEphemeralDataClass = findMethod {
         matcher {
-            usingEqStrings("ig_thread_igid", "viewed_item_ranges", "viewed_timestamp_ms")
+            // "ig_thread_igid" moved to the string pool in 457, the other two are enough.
+            usingEqStrings("viewed_item_ranges", "viewed_timestamp_ms")
             name = "unsafeParseFromJson"
             paramCount = 1
         }

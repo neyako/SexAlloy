@@ -298,8 +298,6 @@ val instantCaptureMethods = findMethodListDirect {
 private const val PANDO_MUSIC_INFO = "com.instagram.api.schemas.ImmutablePandoMusicInfo"
 private const val TRACK_DATA = "com.instagram.api.schemas.TrackData"
 private const val PANDO_TRACK_DATA = "com.instagram.api.schemas.ImmutablePandoTrackData"
-private const val MUSIC_CONSUMPTION = "com.instagram.music.common.model.MusicConsumptionModel"
-private const val PANDO_MUSIC_CONSUMPTION = "com.instagram.music.common.model.ImmutablePandoMusicConsumptionModel"
 
 private fun DexKitBridge.pandoGetter(type: String, field: String, returns: String?): MethodData =
     findMethod {
@@ -317,21 +315,24 @@ val mediaMusicMetadataGetterFingerprint = findMethodDirect { pandoGetter(MEDIA_C
 val mediaClipsMetadataGetterFingerprint = findMethodDirect { pandoGetter(MEDIA_CLASS, "clips_metadata", null) }
 
 val musicTrackGetterFingerprint = findMethodDirect { pandoGetter(PANDO_MUSIC_INFO, "music_asset_info", TRACK_DATA) }
-val musicConsumptionGetterFingerprint = findMethodDirect { pandoGetter(PANDO_MUSIC_INFO, "music_consumption_info", MUSIC_CONSUMPTION) }
-val trackUrlGetterFingerprint = findMethodDirect { pandoGetter(PANDO_TRACK_DATA, "progressive_download_url", STRING) }
-val musicStartGetterFingerprint = findMethodDirect { pandoGetter(PANDO_MUSIC_CONSUMPTION, "audio_asset_start_time_in_ms", "java.lang.Integer") }
-val musicLengthGetterFingerprint = findMethodDirect { pandoGetter(PANDO_MUSIC_CONSUMPTION, "overlap_duration_in_ms", "java.lang.Integer") }
+val musicConsumptionGetterFingerprint = findMethodDirect { pandoGetter(PANDO_MUSIC_INFO, "music_consumption_info", null) }
 
+// The consumption model was renamed in 457 (MusicConsumptionModel to MusicConsumptionInfoDict), so its
+// Pando class is named after whatever the getter returns.
+private fun DexKitBridge.pandoMusicConsumption(): String =
+    musicConsumptionGetterFingerprint().returnTypeName.let { it.substringBeforeLast('.') + ".ImmutablePando" + it.substringAfterLast('.') }
+
+val trackUrlGetterFingerprint = findMethodDirect { pandoGetter(PANDO_TRACK_DATA, "progressive_download_url", STRING) }
+val musicStartGetterFingerprint = findMethodDirect { pandoGetter(pandoMusicConsumption(), "audio_asset_start_time_in_ms", "java.lang.Integer") }
+val musicLengthGetterFingerprint = findMethodDirect { pandoGetter(pandoMusicConsumption(), "overlap_duration_in_ms", "java.lang.Integer") }
+
+// Matched by shape: the "ClipsOrganicMoreOptionsHelper_addBottomSheetRowItem" marker string is gone in 457.
 val reelMenuRowAdderFingerprint = findMethodDirect {
     findMethod {
         matcher {
             returnType = "void"
-            usingStrings(listOf("ClipsOrganicMoreOptionsHelper_addBottomSheetRowItem"), StringMatchType.Contains)
+            paramTypes(CONTEXT, MEDIA_OPTION_CLASS, null, null, "java.lang.Integer", STRING)
         }
-    }.single { m ->
-        val p = m.paramTypeNames
-        !Modifier.isStatic(m.modifiers) && p.size == 6 && p[0] == CONTEXT && p[1] == MEDIA_OPTION_CLASS &&
-            p[4] == "java.lang.Integer" && p[5] == STRING
-    }
+    }.single { !Modifier.isStatic(it.modifiers) }
 }
 

@@ -3,6 +3,7 @@ package io.github.nexalloy.revanced.instagram.story
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
+import io.github.nexalloy.revanced.instagram.findMethodUsingString
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.FieldUsingType
 import org.luckypray.dexkit.result.MethodData
@@ -39,13 +40,10 @@ val userFullNameGetterFingerprint = findMethodDirect { pandoGetter(USER, "full_n
 
 val userProfilePicGetterFingerprint = findMethodDirect { pandoGetter(USER, "profile_pic_url", null) }
 
-private fun DexKitBridge.highQualityPref(): MethodData = findMethod {
-    matcher {
-        returnType = "boolean"
-        paramCount = 1
-        usingEqStrings("high_quality_media_upload")
-        addInvoke { name = "getInt"; paramTypes("java.lang.String", "int") }
-    }
+private fun DexKitBridge.highQualityPref(): MethodData = findMethodUsingString("high_quality_media_upload") {
+    returnType = "boolean"
+    paramCount = 1
+    addInvoke { name = "getInt"; paramTypes("java.lang.String", "int") }
 }.single { Modifier.isStatic(it.modifiers) }
 
 val uploadHighQualityCheckFingerprint = findMethodDirect {

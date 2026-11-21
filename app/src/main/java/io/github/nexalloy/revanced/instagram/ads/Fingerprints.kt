@@ -18,12 +18,21 @@ private const val MEDIA = "com.instagram.feed.media.Media"
 private const val USER_SESSION = "com.instagram.common.session.UserSession"
 private const val LIST = "java.util.List"
 
+// The "ClipsItemsNetworkCallback_onSuccess" marker is gone in 457, its delivery log keys remain.
 val reelsPageCallbackFingerprint = findMethodDirect {
     findMethod {
         matcher {
             returnType = "void"
             paramCount = 1
             usingStrings(listOf("ClipsItemsNetworkCallback_onSuccess"), StringMatchType.Contains)
+        }
+    }.ifEmpty {
+        findMethod {
+            matcher {
+                returnType = "void"
+                paramCount = 1
+                usingEqStrings("clips_delivery_cached", "clips_delivery_network")
+            }
         }
     }.single { !Modifier.isStatic(it.modifiers) }
 }

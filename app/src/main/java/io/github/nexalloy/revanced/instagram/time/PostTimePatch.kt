@@ -1,6 +1,7 @@
 package io.github.nexalloy.revanced.instagram.time
 
 import android.content.Context
+import app.morphe.extension.shared.Logger
 import io.github.nexalloy.hookMethod
 import io.github.nexalloy.patch
 import java.lang.reflect.Modifier
@@ -25,7 +26,10 @@ val ShowPostTime = patch(
     }
 
     scope(::feedFooterBuilderFingerprint.method)
-    scope(::commentHeaderFingerprint.method)
+    // The Compose comment header is found by a debug string that 457 no longer ships.
+    // Without it posts and list comments still get exact times, the Compose header keeps the relative one.
+    runCatching { scope(::commentHeaderFingerprint.method) }
+        .onFailure { Logger.printInfo { "Instagram post time: Compose comment header not found: ${it.message}" } }
     ::commentRowTimeReadersFingerprint.dexMethodList.map { it.toMethod() }.forEach { reader ->
         scope(reader) { self -> self == null || holds(self, rowClass) }
     }

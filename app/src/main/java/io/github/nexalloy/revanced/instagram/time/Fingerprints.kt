@@ -1,5 +1,6 @@
 package io.github.nexalloy.revanced.instagram.time
 
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
@@ -74,6 +75,8 @@ private fun DexKitBridge.askingFormatter(marker: String, type: StringMatchType) 
 
 val feedFooterBuilderFingerprint = findMethodDirect { askingFormatter("CoalescedFooterUseCase#getUiState", StringMatchType.Equals) }
 
+// TODO: 457 drops Compose trace strings, so this needs a structural anchor. ShowPostTime treats it as optional.
+@get:RequireAppVersion(maxVersion = "456.99.99.99.99")
 val commentHeaderFingerprint = findMethodDirect {
     findMethod {
         matcher { usingStrings(listOf("com.instagram.comments.mvvm.view.compose.CommentAuthorHeader ("), StringMatchType.StartsWith) }
@@ -104,9 +107,16 @@ val reelTitleRenderFingerprint = findMethodDirect {
     }.single { !Modifier.isStatic(it.modifiers) }
 }
 
+// Matched by its constructor: the "CyclicSubtitleWithIconComponent_render" marker string is gone in 457.
 val reelSubtitleTextClassFingerprint = findClassDirect {
     findMethod {
-        matcher { usingStrings(listOf(PURGE + "CyclicSubtitleWithIconComponent_render"), StringMatchType.Contains) }
+        matcher {
+            name = "<init>"
+            paramTypes(
+                "android.view.View\$OnClickListener", "com.instagram.clips.intf.ClipsViewerConfig",
+                "com.instagram.common.session.UserSession", null, "java.lang.CharSequence", null, null, "int", "boolean",
+            )
+        }
     }.single().declaredClass!!
 }
 

@@ -9,7 +9,6 @@ internal object AudioSource {
 
     private const val MUSIC_INFO = "com.instagram.api.schemas.MusicInfo"
     private const val TRACK_DATA = "com.instagram.api.schemas.TrackData"
-    private const val MUSIC_CONSUMPTION = "com.instagram.music.common.model.MusicConsumptionModel"
 
     private var holders: List<Method> = emptyList()
     private var musicInfo: Class<*>? = null
@@ -26,8 +25,10 @@ internal object AudioSource {
         trackGetter = viaInterface(MUSIC_INFO, track)
         consumptionGetter = viaInterface(MUSIC_INFO, consumption)
         urlGetter = viaInterface(TRACK_DATA, url)
-        startGetter = viaInterface(MUSIC_CONSUMPTION, start)
-        lengthGetter = viaInterface(MUSIC_CONSUMPTION, length)
+        // The consumption model's name differs by version, so take it from the getter.
+        val consumptionType = consumptionGetter!!.returnType.name
+        startGetter = viaInterface(consumptionType, start)
+        lengthGetter = viaInterface(consumptionType, length)
     }
 
     fun of(media: Any?, parent: Any? = null): Audio? {

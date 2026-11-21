@@ -1,6 +1,7 @@
 package io.github.nexalloy.revanced.instagram.dm
 
 import app.morphe.extension.shared.Logger
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findFieldListDirect
@@ -349,6 +350,9 @@ internal val presenceLastActiveField = findFieldDirect {
     presenceTextMethod().instructions.first { it.opcode == OP_IGET_WIDE }.fieldRef!!
 }
 
+// Up to 456 the text method asks a helper whether the person is active and reads the window from a
+// constant field. 457 inlines both: a flag on the item, then a literal. The patch takes whichever exists.
+@get:RequireAppVersion(maxVersion = "456.99.99.99.99")
 internal val presenceActiveCheckMethod = findMethodDirect {
     val item = presenceLastActiveField().declaredClassName
     presenceTextMethod().instructions.mapNotNull { it.methodRef }.first {
@@ -356,8 +360,15 @@ internal val presenceActiveCheckMethod = findMethodDirect {
     }
 }
 
+@get:RequireAppVersion(maxVersion = "456.99.99.99.99")
 internal val presenceActiveWindowField = findFieldDirect {
     presenceTextMethod().instructions.first { it.opcode == OP_SGET_WIDE }.fieldRef!!
+}
+
+@get:RequireAppVersion(minVersion = "457.0.0.0.0")
+internal val presenceActiveFlagField = findFieldDirect {
+    val item = presenceLastActiveField().declaredClassName
+    presenceTextMethod().instructions.first { it.opcode == OP_IGET_BOOLEAN && it.fieldRef?.declaredClassName == item }.fieldRef!!
 }
 
 private const val OP_IGET_BOOLEAN = 0x55

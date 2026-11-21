@@ -18,8 +18,10 @@ val ShowLastActive = patch(
 ) {
     val text = ::presenceTextMethod.method
     val lastActive = ::presenceLastActiveField.field.apply { isAccessible = true }
-    val activeCheck = ::presenceActiveCheckMethod.method.apply { isAccessible = true }
-    val window = ::presenceActiveWindowField.field.apply { isAccessible = true }
+    // Either the helper and window constant (up to 456) or the flag 457 inlines in their place.
+    val activeCheck = runCatching { ::presenceActiveCheckMethod.method.apply { isAccessible = true } }.getOrNull()
+    val window = runCatching { ::presenceActiveWindowField.field.apply { isAccessible = true } }.getOrNull()
+    val activeFlag = if (activeCheck == null) ::presenceActiveFlagField.field.apply { isAccessible = true } else null
 
     text.hookMethod {
         after { param ->
@@ -28,13 +30,18 @@ val ShowLastActive = patch(
                 val item = (param.args[1] as? List<*>)?.firstOrNull() ?: return@runCatching
                 val last = lastActive.getLong(item).takeIf { it > 0 } ?: return@runCatching
                 val now = System.currentTimeMillis()
-                if (activeCheck.invoke(null, item, now) == true || now - last <= window.getLong(null)) return@runCatching
+                val active = activeCheck?.invoke(null, item, now) == true || activeFlag?.getBoolean(item) == true ||
+                    now - last <= (window?.getLong(null) ?: INLINED_ACTIVE_WINDOW_MS)
+                if (active) return@runCatching
                 val res = param.args[0] as Resources
                 param.result = exact(res, last) ?: return@runCatching
             }
         }
     }
 }
+
+/** How long Instagram keeps showing Active now, as inlined into the text method from 457. */
+private const val INLINED_ACTIVE_WINDOW_MS = 390_000L
 
 private fun exact(res: Resources, at: Long): String? {
     val app = AndroidAppHelper.currentApplication() ?: return null
