@@ -1,5 +1,6 @@
 package io.github.nexalloy.revanced.threads.ads
 
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.findMethodDirect
 
 val adFetchSponsoredContentFingerprint = findMethodDirect {
@@ -19,9 +20,12 @@ val adContentDeliveredFingerprint = findMethodDirect {
     }.single()
 }
 
+private const val GONE_IN_456 = "455.99.99.99.99"
+
 // The three label composables and the spool handler below are found by Compose trace strings and a class name.
 // 456 has neither: no trace strings are left and the labels are plain obfuscated composables with nothing else to key
 // on, so they stay unmatched there. HideAdsPatch skips a miss.
+@get:RequireAppVersion(maxVersion = GONE_IN_456)
 val paidPartnershipLabelFingerprint = findMethodDirect {
     findMethod {
         matcher {
@@ -31,6 +35,7 @@ val paidPartnershipLabelFingerprint = findMethodDirect {
     }.single()
 }
 
+@get:RequireAppVersion(maxVersion = GONE_IN_456)
 val adMetadataFingerprint = findMethodDirect {
     findMethod {
         matcher {
@@ -40,6 +45,7 @@ val adMetadataFingerprint = findMethodDirect {
     }.single()
 }
 
+@get:RequireAppVersion(maxVersion = GONE_IN_456)
 val sponsoredLabelInHeaderFingerprint = findMethodDirect {
     findMethod {
         matcher {
@@ -50,6 +56,7 @@ val sponsoredLabelInHeaderFingerprint = findMethodDirect {
 }
 
 // 456 has no spool handler class left (the feed repository logs spoolEnabled=false), so this does not match there.
+@get:RequireAppVersion(maxVersion = GONE_IN_456)
 val spoolAdInjectorFingerprint = findMethodDirect {
     findMethod {
         matcher {
