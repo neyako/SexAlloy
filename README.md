@@ -100,7 +100,7 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 
 ### Threads
 
-- Hide ads, sponsored posts, paid partnerships, and ads in replies
+- Hide ads, sponsored posts, and ads in replies
 - Block ad and analytics traffic
 - Remove tracking from copied or shared links and expand short share links
 - Stop Threads from detecting screenshots

@@ -83,6 +83,7 @@ private fun reelMedia(title: Any, skip: Set<Class<*>>): Any? {
 private fun Class<*>.only(type: Class<*>): Field =
     declaredFields.single { it.type == type && !Modifier.isStatic(it.modifiers) }.apply { isAccessible = true }
 
+@Volatile
 private var logged = false
 
 private fun logOnce(what: String) {

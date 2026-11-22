@@ -107,9 +107,10 @@ val SaveVideos = patch(
                     // The open callback is a merged lambda, so its fields are all Object. Look at the values.
                     val held = open.javaClass.declaredFields.filter { !Modifier.isStatic(it.modifiers) && !it.type.isPrimitive }
                         .mapNotNull { f -> f.isAccessible = true; f.get(open) }
-                    val postId = held.firstNotNullOfOrNull { it as? String } ?: return@runCatching
                     val cache = held.firstNotNullOfOrNull { fieldOfType(it, mediaCache) } ?: return@runCatching
-                    val post = cacheGet.invoke(cache, postId) ?: return@runCatching
+                    // The post id is whichever held text the cache knows.
+                    val post = held.filterIsInstance<String>().firstNotNullOfOrNull { runCatching { cacheGet.invoke(cache, it) }.getOrNull() }
+                        ?: return@runCatching
                     // Other states in there hold booleans, the page index is the one holding a number.
                     val index = held.filter { stateClass.isInstance(it) }.firstNotNullOfOrNull { stateValue.invoke(it) as? Number }?.toInt() ?: 0
                     val pages = reader.pages(post)

@@ -20,6 +20,7 @@ val AutoRecordCalls = patch(
         "Recordings/Zalo Call Recordings as M4A. Runs the native ZRTC recorder. " +
         "Default off. Recording calls may require the consent of all parties " +
         "where you live — check local law before enabling.",
+    use = false,
 ) {
     val symbols = ResolvedCallSymbols(
         callbackImpl = ::callCallbackImplFingerprint.clazz,

@@ -34,9 +34,10 @@ internal fun DexKitBridge.findMethodUsingString(value: String, extra: MethodMatc
         findMethod {
             matcher { addInvoke(pool.descriptor); usingNumbers(index); extra() }
         }.filter { m ->
-            m.instructions.zipWithNext().any { (load, call) ->
+            // A caller the decoder rejects (see above) is skipped rather than failing the whole search.
+            runCatching { m.instructions }.getOrNull()?.zipWithNext()?.any { (load, call) ->
                 load.literal == index.toLong() && call.methodRef?.descriptor == pool.descriptor
-            }
+            } == true
         }
     }
     return (direct + pooled).distinctBy { it.descriptor }
