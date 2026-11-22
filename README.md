@@ -4,17 +4,10 @@ SexAlloy is an LSPosed module that removes ads and adds extra features to popula
 
 This repository is the maintained continuation of [SexAlloy](https://github.com/gnadgnaoh/SexAlloy) (originally forked from [NexAlloy](https://github.com/NexAlloy/NexAlloy)), keeping extra apps working on newer versions while staying up to date with upstream.
 
-## What you need
-
-- A rooted Android phone with a recent version of LSPosed.
-- This is not an official Morphe or ReVanced project. Please do not ask their developers for support.
-
 ## Download
 
-- **Stable release**: [Latest release](https://github.com/neyako/SexAlloy/releases/latest)
-- **Dev build**: [Autobuild](https://github.com/neyako/SexAlloy/releases/tag/autobuild)
-
-A dev build is published on every change, and a stable release is cut automatically every few changes.
+- **Stable release**: [You should use this](https://github.com/neyako/SexAlloy/releases/latest)
+- **Nightly build**: [If you really want latest](https://github.com/neyako/SexAlloy/releases/tag/autobuild)
 
 ## Install
 
@@ -25,9 +18,10 @@ A dev build is published on every change, and a stable release is cut automatica
 
 ## Supported apps and features
 
-Features marked *(off by default)* can be enabled in the NexAlloy app.
+Features marked *(off by default)* can be enabled in the NexAlloy app. Tap an app to see its features.
 
-### YouTube
+<details>
+<summary><b>YouTube</b></summary>
 
 - Remove general ads, video ads, and Premium promotions
 - SponsorBlock (skip sponsors and other unwanted segments)
@@ -58,7 +52,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Search inside the current channel
 - Whitelist specific channels for ads or playback speed
 
-### YouTube Music
+</details>
+
+<details>
+<summary><b>YouTube Music</b></summary>
 
 - Remove music video ads, fullscreen ads, and Premium promotions (including the "Get Music Premium" label)
 - Background playback, including for kids videos
@@ -66,7 +63,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Play audio without video
 - Remove tracking from shared links
 
-### Instagram
+</details>
+
+<details>
+<summary><b>Instagram</b></summary>
 
 - Hide feed, Reels, Stories, sponsored, and paid partnership ads
 - Hide creator "Paid partnership" reels in the Reels tab *(off by default)*
@@ -98,7 +98,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Show a count and clickable list of accounts mentioned in a story
 - Show exact timestamps on posts, comments, reels, and stories
 
-### Threads
+</details>
+
+<details>
+<summary><b>Threads</b></summary>
 
 - Hide ads, sponsored posts, and ads in replies
 - Block ad and analytics traffic
@@ -106,7 +109,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Stop Threads from detecting screenshots
 - Save videos from posts at best quality
 
-### Facebook
+</details>
+
+<details>
+<summary><b>Facebook</b></summary>
 
 - Hide sponsored feed posts, Reels ads, game ads, and banner ads
 - Hide mid-roll ad breaks and sponsored cards in videos and live replays
@@ -126,7 +132,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Upload video stories in high quality
 - Download any photo, reel, story (including with music), or video at best quality
 
-### Messenger
+</details>
+
+<details>
+<summary><b>Messenger</b></summary>
 
 - Hide promotion banners in the chat list, inside chats, and in chats started from business ads
 - Hide read receipts when opening chats, including end-to-end encrypted chats
@@ -139,7 +148,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Send videos as original files without recompression when allowed, up to 25 MB *(off by default)*
 - Block usage analytics, ad attribution, and inbox or ad link tracking
 
-### TikTok and TikTok (Asia)
+</details>
+
+<details>
+<summary><b>TikTok and TikTok (Asia)</b></summary>
 
 - Remove sponsored videos from For You, Following, Friends, profile, and search feeds
 - Skip full-screen startup splash ads
@@ -170,7 +182,10 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Auto-translate comments as they appear *(off by default)*
 - Keep video descriptions and captions in their original language even when auto-translate is on *(off by default)*
 
-### Zalo
+</details>
+
+<details>
+<summary><b>Zalo</b></summary>
 
 - Hide and filter sponsored ads in the timeline (Nhật ký) feed
 - Hide ad rows in the Messages (Tin nhắn) tab
@@ -189,13 +204,19 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - Keep the Google Drive photo backup option available
 - Auto-record one-to-one voice and video call audio to `Recordings/Zalo Call Recordings` *(off by default; check local call-recording laws before enabling)*
 
-### Reddit
+</details>
+
+<details>
+<summary><b>Reddit</b></summary>
 
 - Hide ads
 - Remove tracking from shared links
 - Skip the forced startup login screen and browse as a guest
 
-### X (Twitter)
+</details>
+
+<details>
+<summary><b>X (Twitter)</b></summary>
 
 - Remove promoted posts, trends, and Google ads
 - Hide "Who to follow" and "Today's news" suggestions
@@ -207,45 +228,71 @@ Features marked *(off by default)* can be enabled in the NexAlloy app.
 - View poll results without voting
 - Disable blur effects in the newer X interface
 
-### Gmail
+</details>
+
+<details>
+<summary><b>Gmail</b></summary>
 
 - Hide sponsored ad rows in the inbox
 
-### Google (Discover)
+</details>
+
+<details>
+<summary><b>Google (Discover)</b></summary>
 
 - Hide promoted ad cards in the Google Discover feed
 
-### Google Photos
+</details>
+
+<details>
+<summary><b>Google Photos</b></summary>
 
 - Unlock Pixel exclusive features, including unlimited photo storage
 - Choose which Camera/DCIM folders to back up individually instead of backing up all of them automatically *(off by default)*
 
-### SoundCloud
+</details>
+
+<details>
+<summary><b>SoundCloud</b></summary>
 
 - Unlock SoundCloud Go+ features (ad-free listening, high-quality audio, offline listening)
 - Block SoundCloud analytics
 - Hide cookie and consent popups
 
-### Strava
+</details>
+
+<details>
+<summary><b>Strava</b></summary>
 
 - Unlock subscription features (Routes, Matched Runs, Segment Efforts)
 - Hide subscription prompts
 
-### AllTrails
+</details>
+
+<details>
+<summary><b>AllTrails</b></summary>
 
 - Unlock Peak membership features
 
-### Photomath
+</details>
+
+<details>
+<summary><b>Photomath</b></summary>
 
 - Unlock Photomath Plus and textbook access
 
-### Proton VPN
+</details>
+
+<details>
+<summary><b>Proton VPN</b></summary>
 
 - Unlock VPN Plus app features while routing through free servers, and skip the post-login upgrade prompt
 - Show only free server locations in Countries and Search and connect to the one you pick
 - Hide paid-only settings, upgrade banners, and special offers
 - Remove the cooldown delay when switching servers
 - Block telemetry and analytics
+
+</details>
 
 ## Credits
 
