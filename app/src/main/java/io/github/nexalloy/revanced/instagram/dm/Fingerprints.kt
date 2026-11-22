@@ -100,18 +100,17 @@ private val MESSAGE_FIELD_KEYS = listOf(
 
 private fun DexKitBridge.messageFields(): Map<String, FieldData> = once("messageFields") {
     val parser = messageParserClass()
-    val found = HashMap<String, FieldData>(MESSAGE_FIELD_KEYS.size)
+    // Every field written right after a key is read. The serializer names the same keys while it
+    // fills its own helper objects, so only writes into the message class itself count.
+    val writes = HashMap<String, MutableList<FieldData>>(MESSAGE_FIELD_KEYS.size)
 
     for (method in parser.methods) {
-        if (found.size == MESSAGE_FIELD_KEYS.size) break
-
         val used = runCatching { method.usingStrings.toHashSet() }.getOrNull()
-        if (used != null && MESSAGE_FIELD_KEYS.none { !found.containsKey(it) && it in used }) continue
+        if (used != null && MESSAGE_FIELD_KEYS.none { it in used }) continue
 
         val instructions = runCatching { method.instructions }.getOrNull() ?: continue
 
         for (key in MESSAGE_FIELD_KEYS) {
-            if (found.containsKey(key)) continue
             val keyIndex = instructions.indexOfFirst { it.string == key }
             if (keyIndex < 0) continue
 
@@ -119,9 +118,14 @@ private fun DexKitBridge.messageFields(): Map<String, FieldData> = once("message
                 .drop(keyIndex + 1)
                 .firstOrNull { it.opcode in INSTANCE_FIELD_WRITES }
                 ?.fieldRef
-                ?.let { found[key] = it }
+                ?.let { writes.getOrPut(key) { ArrayList() }.add(it) }
         }
     }
+    // The message is a class and its base class; the base holds most of the keys.
+    val base = writes.values.flatten().groupingBy { it.declaredClassName }.eachCount().maxByOrNull { it.value }?.key
+    fun inMessage(field: FieldData) = generateSequence(field.declaredClass) { it.superClass }.any { it.name == base }
+    val found = HashMap<String, FieldData>(MESSAGE_FIELD_KEYS.size)
+    for ((key, fields) in writes) fields.firstOrNull(::inMessage)?.let { found[key] = it }
     for (key in MESSAGE_FIELD_KEYS) {
         if (found.containsKey(key)) continue
         val pools = findMethod {
