@@ -101,20 +101,14 @@ val commentRowTimeReadersFingerprint = findMethodListDirect {
 
 private const val PURGE = "_"
 
-// Up to 455 the render method carries a trace marker. 456 dropped it, so fall back to shape: the
-// title component is the one class that builds subtitle lines, and render is its only public method.
+// Up to 455 the render method carries a trace marker. 456 dropped it, but the method still names
+// the title row it lays out. The subtitle rows are built by another class, which is not the target.
 val reelTitleRenderFingerprint = findMethodDirect {
     findMethod {
         matcher { usingStrings(listOf(PURGE + "ClipsTitleAndSubtitleComponent_render"), StringMatchType.Contains) }
-    }.singleOrNull { !Modifier.isStatic(it.modifiers) } ?: run {
-        val text = reelSubtitleTextClassFingerprint()
-        val title = findMethod {
-            matcher { addInvoke { declaredClass(text.name); name = "<init>" } }
-        }.map { it.declaredClassName }.distinct().single()
-        findMethod {
-            matcher { declaredClass(title); paramCount = 1; modifiers = Modifier.PUBLIC }
-        }.single { !Modifier.isStatic(it.modifiers) && !it.isConstructor && it.returnTypeName != "void" }
-    }
+    }.singleOrNull { !Modifier.isStatic(it.modifiers) } ?: findMethod {
+        matcher { usingEqStrings("clips_author_info_title_component"); paramCount = 1 }
+    }.single { !Modifier.isStatic(it.modifiers) && it.returnTypeName != "void" }
 }
 
 // Matched by its constructor: the "CyclicSubtitleWithIconComponent_render" marker string is gone in 456.

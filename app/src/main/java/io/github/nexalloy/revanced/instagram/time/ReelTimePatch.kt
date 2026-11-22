@@ -41,8 +41,9 @@ val ShowReelTime = patch(
     render.hookMethod {
         after { param ->
             runCatching {
-                val parts = param.result?.let(::partsOf) ?: return@runCatching
-                val media = reelMedia(param.thisObject, setOf(takes[1], takes[2])) ?: return@runCatching logNoMedia(param.thisObject)
+                val parts = param.result?.let(::partsOf) ?: return@runCatching logOnce("no line list in ${param.result?.javaClass?.name}")
+                val media = reelMedia(param.thisObject, setOf(takes[1], takes[2]))
+                    ?: return@runCatching logOnce("no media reachable from ${param.thisObject.javaClass.name}")
                 val seconds = takenAt.invoke(media) as? Long ?: return@runCatching
                 if (seconds <= 0) return@runCatching
                 val s = session.get(param.thisObject)
@@ -51,7 +52,7 @@ val ShowReelTime = patch(
                     TimeFormat.exact(ctx, seconds * 1000), null, null, 0, false,
                 )
                 parts.add(line)
-            }
+            }.onFailure { logOnce("failed: $it") }
         }
     }
 }
@@ -82,12 +83,12 @@ private fun reelMedia(title: Any, skip: Set<Class<*>>): Any? {
 private fun Class<*>.only(type: Class<*>): Field =
     declaredFields.single { it.type == type && !Modifier.isStatic(it.modifiers) }.apply { isAccessible = true }
 
-private var loggedNoMedia = false
+private var logged = false
 
-private fun logNoMedia(title: Any) {
-    if (loggedNoMedia) return
-    loggedNoMedia = true
-    Logger.printInfo { "Instagram reel time: no media reachable from ${title.javaClass.name}" }
+private fun logOnce(what: String) {
+    if (logged) return
+    logged = true
+    Logger.printInfo { "Instagram reel time: $what" }
 }
 
 /**
