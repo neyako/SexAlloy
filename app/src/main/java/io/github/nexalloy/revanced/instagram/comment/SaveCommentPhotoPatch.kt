@@ -36,6 +36,11 @@ val SaveCommentPhoto = patch(
     }
     val gifOf = part { it.name.startsWith(GIPHY) }
     val mediaOf = part { it == MediaResolver.mediaType }
+    // A GIF someone else posted arrives as a plain part instead: its Giphy id and its addresses as text.
+    val textParts = selectedType.declaredFields.filter { f ->
+        !Modifier.isStatic(f.modifiers) && f.type.name.startsWith("X.") && !f.type.isEnum && !f.type.isInterface &&
+            f.type.declaredFields.count { it.type == String::class.java && !Modifier.isStatic(it.modifiers) } >= 2
+    }.onEach { it.isAccessible = true }
 
     val save = ::menuActionSingletonsFingerprint.fieldList.firstNotNullOfOrNull { f ->
         runCatching { f.isAccessible = true; f.get(null) }.getOrNull()?.takeIf { it.toString() == SAVE_ACTION }
@@ -56,9 +61,8 @@ val SaveCommentPhoto = patch(
     fun target(ctx: Context, selected: Any): Target? {
         if (!selectedType.isInstance(selected)) return null
         gifOf(selected)?.let { gif -> return gifUrl(gif)?.let { Target(it, true) } }
-        val media = mediaOf(selected) ?: return null
-        val item = MediaResolver.single(ctx, media) ?: return null
-        return Target(item.url, false, item)
+        mediaOf(selected)?.let { media -> return MediaResolver.single(ctx, media)?.let { Target(it.url, false, it) } }
+        return textParts.firstNotNullOfOrNull { it.get(selected)?.let(::animatedUrl) }?.let { Target(it, true) }
     }
 
     renderer.hookMethod {
@@ -105,6 +109,13 @@ private fun saveTarget(ctx: Context, target: Target, author: String?) {
             .onSuccess { MediaSaver.toast(ctx, I18n.t(ctx, R.string.ig_toast_photo_saved)) }
             .onFailure { MediaSaver.toast(ctx, I18n.t(ctx, R.string.ig_toast_download_failed, it.message ?: it.javaClass.simpleName)) }
     }
+}
+
+private fun animatedUrl(part: Any): String? {
+    val urls = part.javaClass.declaredFields.filter { it.type == String::class.java && !Modifier.isStatic(it.modifiers) }
+        .mapNotNull { f -> f.isAccessible = true; (f.get(part) as? String)?.takeIf { it.startsWith("https://") } }
+    fun pick(ext: String) = urls.firstOrNull { it.substringBefore('?').lowercase().endsWith(ext) }
+    return pick(".gif") ?: pick(".webp") ?: pick(".mp4")
 }
 
 private fun gifUrl(root: Any): String? {
