@@ -3,6 +3,7 @@ name: Android CI
 # Every push to main publishes a dev build (the `autobuild` prerelease the in-app nightly
 # update check reads). Every RELEASE_EVERY-th change since the last stable release also
 # publishes that same build as a stable `2.0.N` release, N being the version code.
+# Only main publishes: a manual run started on any other branch is skipped.
 
 on:
   push:
@@ -24,6 +25,7 @@ concurrency:
 jobs:
   build:
 
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -41,8 +43,9 @@ jobs:
         FORCE_RELEASE: ${{ inputs.release }}
       run: |
         # Releases rather than git tags: tags fetched from upstream NexAlloy are not ours.
-        LAST=$(gh release list --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' |
-          grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+        # On its own line so a failed request stops the run instead of looking like "no release yet".
+        RELEASES=$(gh release list --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName')
+        LAST=$(grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' <<< "$RELEASES" | sort -V | tail -n 1 || true)
         BASE=$(sed -n 's/^ *versionCode = \([0-9]\+\).*/\1/p' app/build.gradle.kts)
         [ -n "$BASE" ] || { echo "::error::versionCode not found in app/build.gradle.kts"; exit 1; }
         if [ -z "$LAST" ]; then
@@ -81,8 +84,11 @@ jobs:
         KEYSTORE_ALIAS_PASSWORD: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
       run: |
         # Without the key the APK would be unsigned and no phone would install it.
-        [ -n "$KEYSTORE" ] || { echo "::error::Add the KEYSTORE, KEYSTORE_PASSWORD, KEYSTORE_ALIAS and KEYSTORE_ALIAS_PASSWORD secrets"; exit 1; }
-        echo "$KEYSTORE" | base64 --decode > key.jks
+        if [ -z "$KEYSTORE" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEYSTORE_ALIAS" ] || [ -z "$KEYSTORE_ALIAS_PASSWORD" ]; then
+          echo "::error::Add the KEYSTORE, KEYSTORE_PASSWORD, KEYSTORE_ALIAS and KEYSTORE_ALIAS_PASSWORD secrets"; exit 1
+        fi
+        # A pasted secret can carry line breaks or spaces.
+        echo "$KEYSTORE" | tr -d '[:space:]' | base64 --decode > key.jks
         {
           echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
           echo "KEYSTORE_ALIAS=$KEYSTORE_ALIAS"
@@ -150,5 +156,6 @@ jobs:
       run: |
         APK="NexAlloy-${VERSION}.apk"
         cp app/build/outputs/apk/release/app-release.apk "$APK"
-        gh release create "$VERSION" "$APK" --target "$GITHUB_SHA" --title "$VERSION" --latest \
-          --generate-notes ${LAST:+--notes-start-tag "$LAST"}
+        set -- --generate-notes
+        [ -z "$LAST" ] || set -- "$@" --notes-start-tag "$LAST"
+        gh release create "$VERSION" "$APK" --target "$GITHUB_SHA" --title "$VERSION" --latest "$@"
